@@ -1,21 +1,17 @@
 {
-  "name": "infinite-bot",
+  "name": "discord-bot",
   "version": "1.0.0",
-  "description": "Bot de Discord todo en uno: diversión, moderación, XP, tickets y más",
+  "description": "Bot de Discord con comandos, XP, tickets y música",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "author": "Gonzalo",
-  "license": "MIT",
   "dependencies": {
     "discord.js": "^14.15.3",
-    "dotenv": "^17.2.1",
-    "quick.db": "^9.0.8",
+    "dotenv": "^16.4.5",
+    "@discordjs/voice": "^0.17.0",
+    "ytdl-core": "^4.11.5",
     "fs": "^0.0.1-security",
-    "node-fetch": "^3.3.2"
-  },
-  "engines": {
-    "node": "18.x"
+    "mongoose": "^8.5.1"
   }
 }
