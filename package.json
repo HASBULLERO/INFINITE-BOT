@@ -1,17 +1,18 @@
 {
-  "name": "discord-bot",
+  "name": "vice-casino-bot",
   "version": "1.0.0",
-  "description": "Bot de Discord con comandos, XP, tickets y música",
+  "description": "Bot de Discord todo en uno con economía, juegos, XP y tickets",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "engines": {
+    "node": "18.x"
+  },
   "dependencies": {
     "discord.js": "^14.15.3",
-    "dotenv": "^16.4.5",
-    "@discordjs/voice": "^0.17.0",
-    "ytdl-core": "^4.11.5",
-    "fs": "^0.0.1-security",
-    "mongoose": "^8.5.1"
+    "dotenv": "^17.2.1",
+    "express": "^4.18.2",
+    "mongoose": "^7.3.1"
   }
 }
