@@ -9,6 +9,7 @@ const {
   Partials,
   REST,
   Routes,
+  SlashCommandBuilder,
   EmbedBuilder,
   PermissionFlagsBits,
   ChannelType,
@@ -20,7 +21,7 @@ const {
 // ========================== CONFIG ==========================
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID || null;
+const GUILD_ID = process.env.GUILD_ID;
 
 const STAFF_ROLE_IDS = [
   "1405183233293025382",
@@ -125,8 +126,51 @@ function tryAddXP(userId, channel) {
 
 // ========================== SLASH COMMANDS ==========================
 const slashDefs = [
-  new EmbedBuilder(),
-].map(c => c.toJSON());
+  new SlashCommandBuilder().setName("ping").setDescription("Responde con Pong!"),
+
+  new SlashCommandBuilder().setName("balance").setDescription("Muestra tu saldo"),
+
+  new SlashCommandBuilder().setName("daily").setDescription("Reclama tu recompensa diaria"),
+
+  new SlashCommandBuilder().setName("trabajar").setDescription("Trabaja para ganar dinero"),
+
+  new SlashCommandBuilder()
+    .setName("apostar")
+    .setDescription("Apuesta dinero")
+    .addIntegerOption(o =>
+      o.setName("cantidad").setDescription("Cantidad a apostar").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("transferir")
+    .setDescription("Transfiere dinero a otro usuario")
+    .addUserOption(o =>
+      o.setName("usuario").setDescription("El usuario al que transferirás").setRequired(true)
+    )
+    .addIntegerOption(o =>
+      o.setName("cantidad").setDescription("Cantidad a transferir").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("coinflip")
+    .setDescription("Apuesta en cara o cruz")
+    .addStringOption(o =>
+      o.setName("eleccion")
+        .setDescription("Elige cara o cruz")
+        .setRequired(true)
+        .addChoices({ name: "cara", value: "cara" }, { name: "cruz", value: "cruz" })
+    )
+    .addIntegerOption(o =>
+      o.setName("cantidad").setDescription("Cantidad a apostar").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("slots")
+    .setDescription("Juega a las tragaperras")
+    .addIntegerOption(o =>
+      o.setName("cantidad").setDescription("Cantidad a apostar").setRequired(true)
+    ),
+].map(cmd => cmd.toJSON());
 
 // ========================== REGISTRO DE COMANDOS ==========================
 const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -134,13 +178,8 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 async function registerCommands() {
   try {
     console.log("⚙️ Registrando slash commands…");
-    if (GUILD_ID) {
-      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: slashDefs });
-      console.log("✅ Comandos registrados en GUILD.");
-    } else {
-      await rest.put(Routes.applicationCommands(CLIENT_ID), { body: slashDefs });
-      console.log("✅ Comandos registrados GLOBAL.");
-    }
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: slashDefs });
+    console.log("✅ Comandos registrados en el servidor.");
   } catch (e) {
     console.error("❌ Error registrando comandos:", e);
   }
@@ -158,95 +197,88 @@ client.on("messageCreate", (msg) => {
 // ========================== INTERACCIONES ==========================
 client.on("interactionCreate", async (i) => {
   if (i.isChatInputCommand()) {
-    try {
-      const name = i.commandName;
+    const name = i.commandName;
 
-      // ---------- Utilidad ----------
-      if (name === "ping") return i.reply(`🏓 Pong! Latencia WS: **${client.ws.ping}ms**`);
+    // ---------- Utilidad ----------
+    if (name === "ping") return i.reply(`🏓 Pong! Latencia WS: **${client.ws.ping}ms**`);
 
-      // ---------- ECONOMÍA ----------
-      if (name === "balance") return i.reply(`💰 ${i.user.username}, tu saldo es **${getBalance(i.user.id)}**.`);
+    // ---------- ECONOMÍA ----------
+    if (name === "balance") return i.reply(`💰 ${i.user.username}, tu saldo es **${getBalance(i.user.id)}**.`);
 
-      if (name === "daily") {
-        const u = ensureUserEconomy(i.user.id);
-        const cd = canUseCooldown(u.lastDaily, 24 * 60 * 60 * 1000);
-        if (!cd.ok) return i.reply({ content: `⏳ Vuelve en **${fmtMs(cd.left)}**.`, ephemeral: true });
-        const amount = Math.floor(Math.random() * 201) + 100;
-        u.lastDaily = Date.now();
-        addMoney(i.user.id, amount);
-        return i.reply(`🎁 Daily cobrado: **+${amount}**. Nuevo saldo: **${getBalance(i.user.id)}**`);
-      }
+    if (name === "daily") {
+      const u = ensureUserEconomy(i.user.id);
+      const cd = canUseCooldown(u.lastDaily, 24 * 60 * 60 * 1000);
+      if (!cd.ok) return i.reply({ content: `⏳ Vuelve en **${fmtMs(cd.left)}**.`, ephemeral: true });
+      const amount = Math.floor(Math.random() * 201) + 100;
+      u.lastDaily = Date.now();
+      addMoney(i.user.id, amount);
+      return i.reply(`🎁 Daily cobrado: **+${amount}**. Nuevo saldo: **${getBalance(i.user.id)}**`);
+    }
 
-      if (name === "trabajar") {
-        const u = ensureUserEconomy(i.user.id);
-        const cd = canUseCooldown(u.lastWork, 30 * 60 * 1000);
-        if (!cd.ok) return i.reply({ content: `⏳ Podrás trabajar en **${fmtMs(cd.left)}**.`, ephemeral: true });
-        const amount = Math.floor(Math.random() * 251) + 50;
-        u.lastWork = Date.now();
-        addMoney(i.user.id, amount);
-        return i.reply(`🛠️ Trabajaste y ganaste **+${amount}**. Saldo: **${getBalance(i.user.id)}**`);
-      }
+    if (name === "trabajar") {
+      const u = ensureUserEconomy(i.user.id);
+      const cd = canUseCooldown(u.lastWork, 30 * 60 * 1000);
+      if (!cd.ok) return i.reply({ content: `⏳ Podrás trabajar en **${fmtMs(cd.left)}**.`, ephemeral: true });
+      const amount = Math.floor(Math.random() * 251) + 50;
+      u.lastWork = Date.now();
+      addMoney(i.user.id, amount);
+      return i.reply(`🛠️ Trabajaste y ganaste **+${amount}**. Saldo: **${getBalance(i.user.id)}**`);
+    }
 
-      if (name === "apostar") {
-        const cantidad = i.options.getInteger("cantidad", true);
-        if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral: true });
-        if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente dinero.", ephemeral: true });
-        const win = Math.random() < 0.5;
-        if (win) {
-          addMoney(i.user.id, cantidad);
-          return i.reply(`🎉 Ganaste **+${cantidad}**. Saldo: **${getBalance(i.user.id)}**`);
-        } else {
-          addMoney(i.user.id, -cantidad);
-          return i.reply(`💸 Perdiste **-${cantidad}**. Saldo: **${getBalance(i.user.id)}**`);
-        }
-      }
-
-      if (name === "transferir") {
-        const target = i.options.getUser("usuario", true);
-        const cantidad = i.options.getInteger("cantidad", true);
-        if (target.bot || target.id === i.user.id) return i.reply({ content: "❌ No puedes transferirte a ti o a bots.", ephemeral: true });
-        if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral: true });
-        if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente dinero.", ephemeral: true });
+    if (name === "apostar") {
+      const cantidad = i.options.getInteger("cantidad", true);
+      if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral: true });
+      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente dinero.", ephemeral: true });
+      const win = Math.random() < 0.5;
+      if (win) {
+        addMoney(i.user.id, cantidad);
+        return i.reply(`🎉 Ganaste **+${cantidad}**. Saldo: **${getBalance(i.user.id)}**`);
+      } else {
         addMoney(i.user.id, -cantidad);
-        addMoney(target.id, cantidad);
-        return i.reply(`✅ Transferiste **${cantidad}** a **${target.username}**. Tu saldo: **${getBalance(i.user.id)}**`);
+        return i.reply(`💸 Perdiste **-${cantidad}**. Saldo: **${getBalance(i.user.id)}**`);
       }
+    }
 
-      // ---------- Juegos ----------
-      if (name === "coinflip") {
-        const eleccion = i.options.getString("eleccion", true).toLowerCase();
-        const cantidad = i.options.getInteger("cantidad", true);
-        if (!["cara","cruz"].includes(eleccion)) return i.reply({ content: "❌ Elige `cara` o `cruz`.", ephemeral:true });
-        if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral:true });
-        if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente dinero.", ephemeral:true });
-        const resultado = Math.random() < 0.5 ? "cara" : "cruz";
-        const win = resultado === eleccion;
-        if (win) addMoney(i.user.id, cantidad);
-        else addMoney(i.user.id, -cantidad);
-        return i.reply(`🪙 Salió **${resultado}**. ${win?"Ganaste":"Perdiste"} **${cantidad}**. Saldo: **${getBalance(i.user.id)}**`);
+    if (name === "transferir") {
+      const target = i.options.getUser("usuario", true);
+      const cantidad = i.options.getInteger("cantidad", true);
+      if (target.bot || target.id === i.user.id) return i.reply({ content: "❌ No puedes transferirte a ti o a bots.", ephemeral: true });
+      if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral: true });
+      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente dinero.", ephemeral: true });
+      addMoney(i.user.id, -cantidad);
+      addMoney(target.id, cantidad);
+      return i.reply(`✅ Transferiste **${cantidad}** a **${target.username}**. Tu saldo: **${getBalance(i.user.id)}**`);
+    }
+
+    // ---------- Juegos ----------
+    if (name === "coinflip") {
+      const eleccion = i.options.getString("eleccion", true).toLowerCase();
+      const cantidad = i.options.getInteger("cantidad", true);
+      if (!["cara","cruz"].includes(eleccion)) return i.reply({ content: "❌ Elige `cara` o `cruz`.", ephemeral:true });
+      if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral:true });
+      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente dinero.", ephemeral:true });
+      const resultado = Math.random() < 0.5 ? "cara" : "cruz";
+      const win = resultado === eleccion;
+      if (win) addMoney(i.user.id, cantidad);
+      else addMoney(i.user.id, -cantidad);
+      return i.reply(`🪙 Salió **${resultado}**. ${win?"Ganaste":"Perdiste"} **${cantidad}**. Saldo: **${getBalance(i.user.id)}**`);
+    }
+
+    if (name === "slots") {
+      const cantidad = i.options.getInteger("cantidad", true);
+      if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral:true });
+      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente dinero.", ephemeral:true });
+      const symbols = ["🍒","🍋","🔔","⭐","7️⃣"];
+      const r = ()=>symbols[Math.floor(Math.random()*symbols.length)];
+      const res = [r(), r(), r()];
+      let win = false;
+      let ganho = 0;
+      if (res[0]===res[1]&&res[1]===res[2]){
+        win = true;
+        ganho = cantidad*3;
       }
-
-      if (name === "slots") {
-        const cantidad = i.options.getInteger("cantidad", true);
-        if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral:true });
-        if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente dinero.", ephemeral:true });
-        const symbols = ["🍒","🍋","🔔","⭐","7️⃣"];
-        const r = ()=>symbols[Math.floor(Math.random()*symbols.length)];
-        const res = [r(), r(), r()];
-        let win = false;
-        let ganho = 0;
-        if (res[0]===res[1]&&res[1]===res[2]){
-          win = true;
-          ganho = cantidad*3;
-        }
-        addMoney(i.user.id, win?ganho:-cantidad);
-        return i.reply(`🎰 ${res.join(" | ")}\n${win?"Ganaste":"Perdiste"} ${win?ganho: cantidad}. Saldo: **${getBalance(i.user.id)}**`);
-      }
-
-    } catch (err) {
-      console.error("❌ Error en comando:", err);
-      if (i.deferred || i.replied) return i.followUp({ content: "⚠️ Ocurrió un error.", ephemeral: true });
-      return i.reply({ content: "⚠️ Ocurrió un error.", ephemeral: true });
+      addMoney(i.user.id, win?ganho:-cantidad);
+      return i.reply(`🎰 ${res.join(" | ")}\n${win?"Ganaste":"Perdiste"} ${win?ganho: cantidad}. Saldo: **${getBalance(i.user.id)}**`);
     }
   }
 
