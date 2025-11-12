@@ -1,18 +1,21 @@
 {
-  "name": "vice-casino-bot",
+  "name": "HASBULLA",
   "version": "1.0.0",
-  "description": "Bot de Discord todo en uno con economía, juegos, XP y tickets",
+  "description": "Bot de Discord con sistema Premium y Stripe",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "engines": {
-    "node": "18.x"
-  },
+  "keywords": ["discord", "bot", "premium", "stripe"],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.15.3",
-    "dotenv": "^17.2.1",
+    "discord.js": "^14.14.1",
     "express": "^4.18.2",
-    "mongoose": "^7.3.1"
+    "dotenv": "^16.3.1",
+    "stripe": "^14.10.0"
+  },
+  "engines": {
+    "node": ">=18.x"
   }
 }
