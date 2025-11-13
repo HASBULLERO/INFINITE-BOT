@@ -903,7 +903,7 @@ if (name === "megaslots") {
 }
 if (i.isButton() && (i.customId === "support_es" || i.customId === "support_en")) {
 const channel = await i.guild.channels.create({
-name: ticket-${i.user.username},
+name: `ticket-${i.user.username}`,
 type: ChannelType.GuildText,
 permissionOverwrites: [
 { id: i.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
