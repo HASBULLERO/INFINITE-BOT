@@ -1,4 +1,4 @@
-// ========================== IMPORTS ==========================
+ ==========================IMPORTS=======================
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
@@ -17,17 +17,13 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  AuditLogEvent,
 } = require("discord.js");
 
 // ========================== CONFIG ==========================
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+const OWNER_ID = process.env.OWNER_ID; // TU USER ID
 
 const STAFF_ROLE_IDS = [
   "1405183233293025382",
@@ -35,7 +31,6 @@ const STAFF_ROLE_IDS = [
   "1405183318688796803",
 ];
 
-// IDs de logs (configúralos)
 const LOGS_CHANNEL_ID = process.env.LOGS_CHANNEL_ID || null;
 
 // PRICE IDS REALES DE STRIPE
@@ -63,7 +58,6 @@ const PORT = process.env.PORT || 10000;
 
 app.get("/", (_req, res) => res.send("✅ Bot activo con sistema Premium!"));
 
-// Webhook de Stripe (RAW body necesario)
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
@@ -75,12 +69,11 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // Handle the event
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const userId = session.metadata.userId;
     const tier = session.metadata.tier;
-    
+
     if (userId && tier) {
       await activatePremium(userId, tier);
       console.log(`✅ Premium activado para ${userId} (${tier})`);
@@ -112,6 +105,7 @@ function loadJSON(file, fallback) {
   }
   return fallback;
 }
+
 function saveJSON(file, data) {
   try {
     fs.writeFileSync(file, JSON.stringify(data, null, 2));
@@ -165,20 +159,24 @@ function ensureUserEconomy(userId) {
   if (!economy[userId]) economy[userId] = { money: 200, lastDaily: 0, lastWork: 0, bank: 0 };
   return economy[userId];
 }
+
 function getBalance(userId) {
   return ensureUserEconomy(userId).money;
 }
+
 function addMoney(userId, amount) {
   const u = ensureUserEconomy(userId);
   u.money += amount;
   if (u.money < 0) u.money = 0;
   saveJSON(ECON_PATH, economy);
 }
+
 function canUseCooldown(last, ms) {
   const now = Date.now();
   const diff = now - last;
   return { ok: diff >= ms, left: Math.max(0, ms - diff) };
 }
+
 function fmtMs(ms) {
   const s = Math.ceil(ms / 1000);
   const h = Math.floor(s / 3600);
@@ -192,17 +190,19 @@ function ensureUserLevel(userId) {
   if (!levels[userId]) levels[userId] = { xp: 0, level: 1, lastGain: 0 };
   return levels[userId];
 }
+
 function neededXP(level) {
   return 100 * level;
 }
+
 function tryAddXP(userId, channel) {
   const u = ensureUserLevel(userId);
   const now = Date.now();
   if (now - u.lastGain < 60_000) return;
-  
+
   let gain = Math.floor(Math.random() * 11) + 5;
   if (isPremium(userId)) gain *= 2;
-  
+
   u.xp += gain;
   u.lastGain = now;
 
@@ -248,50 +248,80 @@ async function sendLog(guild, embed) {
   }
 }
 
-// ========================== SLASH COMMANDS ==========================
+// ========================== SLASH COMMANDS (GLOBALES) ==========================
 const slashDefs = [
-  new SlashCommandBuilder().setName("ping").setDescription("Responde con Pong!"),
-  
+  new SlashCommandBuilder()
+    .setName("ping")
+    .setDescription("Responde con Pong!")
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
+
   new SlashCommandBuilder()
     .setName("avatar")
     .setDescription("Muestra el avatar de un usuario")
-    .addUserOption(o => o.setName("usuario").setDescription("Usuario (opcional)")),
-  
+    .addUserOption(o => o.setName("usuario").setDescription("Usuario (opcional)"))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
+
   new SlashCommandBuilder()
     .setName("userinfo")
     .setDescription("Información de un usuario")
-    .addUserOption(o => o.setName("usuario").setDescription("Usuario (opcional)")),
-  
+    .addUserOption(o => o.setName("usuario").setDescription("Usuario (opcional)"))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
+
   new SlashCommandBuilder()
     .setName("serverinfo")
-    .setDescription("Información del servidor"),
+    .setDescription("Información del servidor")
+    .setIntegrationTypes([0])
+    .setContexts([0]),
 
-  new SlashCommandBuilder().setName("balance").setDescription("Muestra tu saldo"),
-  
+  new SlashCommandBuilder()
+    .setName("balance")
+    .setDescription("Muestra tu saldo")
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
+
   new SlashCommandBuilder()
     .setName("depositar")
     .setDescription("Deposita dinero en el banco")
-    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
-  
+    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
+
   new SlashCommandBuilder()
     .setName("retirar")
     .setDescription("Retira dinero del banco")
-    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
+    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
-  new SlashCommandBuilder().setName("daily").setDescription("Reclama tu recompensa diaria"),
+  new SlashCommandBuilder()
+    .setName("daily")
+    .setDescription("Reclama tu recompensa diaria")
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
-  new SlashCommandBuilder().setName("trabajar").setDescription("Trabaja para ganar dinero"),
+  new SlashCommandBuilder()
+    .setName("trabajar")
+    .setDescription("Trabaja para ganar dinero")
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("apostar")
     .setDescription("Apuesta dinero")
-    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
+    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("transferir")
     .setDescription("Transfiere dinero")
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
-    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
+    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("coinflip")
@@ -300,12 +330,16 @@ const slashDefs = [
       o.setName("eleccion").setDescription("Elige").setRequired(true)
         .addChoices({ name: "cara", value: "cara" }, { name: "cruz", value: "cruz" })
     )
-    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
+    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("slots")
     .setDescription("Tragaperras")
-    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
+    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("leaderboard")
@@ -313,54 +347,72 @@ const slashDefs = [
     .addStringOption(o =>
       o.setName("tipo").setDescription("Tipo").setRequired(true)
         .addChoices({ name: "Dinero", value: "money" }, { name: "Nivel", value: "level" })
-    ),
+    )
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("8ball")
     .setDescription("Pregunta a la bola mágica")
-    .addStringOption(o => o.setName("pregunta").setDescription("Tu pregunta").setRequired(true)),
+    .addStringOption(o => o.setName("pregunta").setDescription("Tu pregunta").setRequired(true))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("dado")
     .setDescription("Lanza un dado")
-    .addIntegerOption(o => o.setName("caras").setDescription("Número de caras (default: 6)")),
+    .addIntegerOption(o => o.setName("caras").setDescription("Número de caras (default: 6)"))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("meme")
-    .setDescription("Muestra un meme aleatorio"),
+    .setDescription("Muestra un meme aleatorio")
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("kick")
     .setDescription("Expulsa a un usuario")
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
     .addStringOption(o => o.setName("razon").setDescription("Razón"))
-    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
+    .setIntegrationTypes([0])
+    .setContexts([0]),
 
   new SlashCommandBuilder()
     .setName("ban")
     .setDescription("Banea a un usuario")
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
     .addStringOption(o => o.setName("razon").setDescription("Razón"))
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setIntegrationTypes([0])
+    .setContexts([0]),
 
   new SlashCommandBuilder()
     .setName("warn")
     .setDescription("Advierte a un usuario")
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
     .addStringOption(o => o.setName("razon").setDescription("Razón").setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .setIntegrationTypes([0])
+    .setContexts([0]),
 
   new SlashCommandBuilder()
     .setName("warnings")
     .setDescription("Ver advertencias de un usuario")
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .setIntegrationTypes([0])
+    .setContexts([0]),
 
   new SlashCommandBuilder()
     .setName("clearwarns")
     .setDescription("Limpia advertencias de un usuario")
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .setIntegrationTypes([0])
+    .setContexts([0]),
 
   new SlashCommandBuilder()
     .setName("timeout")
@@ -368,17 +420,23 @@ const slashDefs = [
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
     .addIntegerOption(o => o.setName("minutos").setDescription("Minutos").setRequired(true))
     .addStringOption(o => o.setName("razon").setDescription("Razón"))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .setIntegrationTypes([0])
+    .setContexts([0]),
 
   new SlashCommandBuilder()
     .setName("clear")
     .setDescription("Elimina mensajes")
     .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad (1-100)").setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .setIntegrationTypes([0])
+    .setContexts([0]),
 
   new SlashCommandBuilder()
     .setName("premium")
-    .setDescription("Información sobre Premium"),
+    .setDescription("Información sobre Premium")
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("buypremium")
@@ -389,27 +447,48 @@ const slashDefs = [
           { name: "Mensual - $9.99/mes", value: "monthly" },
           { name: "De por vida - $49.99", value: "lifetime" }
         )
-    ),
+    )
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("premiumdaily")
-    .setDescription("🌟 [PREMIUM] Recompensa diaria mejorada"),
+    .setDescription("🌟 [PREMIUM] Recompensa diaria mejorada")
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
   new SlashCommandBuilder()
     .setName("megaslots")
     .setDescription("🌟 [PREMIUM] Slots con multiplicador x5")
-    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
+    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true))
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
+
+  // ⭐ NUEVO COMANDO: GIVE PREMIUM (SOLO OWNER)
+  new SlashCommandBuilder()
+    .setName("givepremium")
+    .setDescription("👑 [OWNER] Da Premium a un usuario manualmente")
+    .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
+    .addStringOption(o =>
+      o.setName("plan").setDescription("Tipo de Premium").setRequired(true)
+        .addChoices(
+          { name: "Mensual (30 días)", value: "monthly" },
+          { name: "De por vida (Permanente)", value: "lifetime" }
+        )
+    )
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]),
 
 ].map(cmd => cmd.toJSON());
 
-// ========================== REGISTRO DE COMANDOS ==========================
+// ========================== REGISTRO DE COMANDOS GLOBALES ==========================
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 async function registerCommands() {
   try {
-    console.log("⚙️ Registrando slash commands…");
-    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: slashDefs });
-    console.log("✅ Comandos registrados.");
+    console.log("⚙️ Registrando comandos GLOBALES...");
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: slashDefs });
+    console.log("✅ Comandos globales registrados. Pueden tardar hasta 1 hora en aparecer.");
   } catch (e) {
     console.error("❌ Error registrando comandos:", e);
   }
@@ -463,21 +542,17 @@ client.on("interactionCreate", async (i) => {
   if (i.isChatInputCommand()) {
     const name = i.commandName;
 
-    if (name === "ping") {
-      return i.reply(`🏓 Pong! Latencia: **${client.ws.ping}ms**`);
-    }
+    if (name === "ping") return i.reply(`🏓 Pong! Latencia: **${client.ws.ping}ms**`);
 
     if (name === "avatar") {
       const user = i.options.getUser("usuario") || i.user;
-      const embed = new EmbedBuilder()
-        .setTitle(`Avatar de ${user.username}`)
-        .setImage(user.displayAvatarURL({ size: 1024 }))
-        .setColor("Blue");
+      const embed = new EmbedBuilder().setTitle(`Avatar de ${user.username}`).setImage(user.displayAvatarURL({ size: 1024 })).setColor("Blue");
       return i.reply({ embeds: [embed] });
     }
 
     if (name === "userinfo") {
       const user = i.options.getUser("usuario") || i.user;
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
       const member = await i.guild.members.fetch(user.id);
       const embed = new EmbedBuilder()
         .setTitle(`👤 Info de ${user.username}`)
@@ -493,6 +568,7 @@ client.on("interactionCreate", async (i) => {
     }
 
     if (name === "serverinfo") {
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
       const guild = i.guild;
       const embed = new EmbedBuilder()
         .setTitle(`🏠 ${guild.name}`)
@@ -618,350 +694,402 @@ client.on("interactionCreate", async (i) => {
       }
       addMoney(i.user.id, win ? ganho : -cantidad);
       return i.reply(`🎰 ${res.join(" | ")}\n${win ? "¡Ganaste!" : "Perdiste"} ${win ? ganho : cantidad}. Saldo: **${getBalance(i.user.id)}**`);
-}
-if (name === "leaderboard") {
-  const tipo = i.options.getString("tipo");
-  let data = [];
-  
-  if (tipo === "money") {
-    data = Object.entries(economy)
-      .map(([id, u]) => ({ id, value: u.money + (u.bank || 0) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  } else {
-    data = Object.entries(levels)
-      .map(([id, u]) => ({ id, value: u.level }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
+    }
+
+    if (name === "leaderboard") {
+      const tipo = i.options.getString("tipo");
+      let data = [];
+
+      if (tipo === "money") {
+        data = Object.entries(economy)
+          .map(([id, u]) => ({ id, value: u.money + (u.bank || 0) }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 10);
+      } else {
+        data = Object.entries(levels)
+          .map(([id, u]) => ({ id, value: u.level }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 10);
+      }
+
+      const description = data.map((d, idx) => `**${idx + 1}.** <@${d.id}> - ${tipo === "money" ? `💰 ${d.value}` : `⭐ Nivel ${d.value}`}`).join("\n") || "Sin datos";
+
+      const embed = new EmbedBuilder()
+        .setTitle(`🏆 Top ${tipo === "money" ? "Dinero" : "Niveles"}`)
+        .setDescription(description)
+        .setColor("Gold");
+      return i.reply({ embeds: [embed] });
+    }
+
+    if (name === "8ball") {
+      const pregunta = i.options.getString("pregunta");
+      const respuestas = [
+        "Sí", "No", "Tal vez", "Definitivamente", "No lo creo",
+        "Pregunta de nuevo", "Sin duda", "No cuentes con ello",
+        "Es probable", "No es seguro", "Mis fuentes dicen que no",
+        "Es cierto", "Mejor no decirte ahora", "Concéntrate y pregunta de nuevo"
+      ];
+      const respuesta = respuestas[Math.floor(Math.random() * respuestas.length)];
+      return i.reply(`🎱 **Pregunta:** ${pregunta}\n**Respuesta:** ${respuesta}`);
+    }
+
+    if (name === "dado") {
+      const caras = i.options.getInteger("caras") || 6;
+      if (caras < 2 || caras > 100) return i.reply({ content: "❌ Entre 2 y 100 caras.", ephemeral: true });
+      const resultado = Math.floor(Math.random() * caras) + 1;
+      return i.reply(`🎲 Lanzaste un dado de ${caras} caras: **${resultado}**`);
+    }
+
+    if (name === "meme") {
+      const memes = [
+        "https://i.imgur.com/2Z8QZ0M.jpg",
+        "https://i.imgur.com/7gFqrNs.jpg",
+        "https://i.imgur.com/xGQ4k2l.jpg",
+        "https://i.imgur.com/YxhkAWZ.jpg",
+        "https://i.imgur.com/5FM9rJV.jpg",
+      ];
+      const meme = memes[Math.floor(Math.random() * memes.length)];
+      const embed = new EmbedBuilder()
+        .setTitle("😂 Meme Aleatorio")
+        .setImage(meme)
+        .setColor("Random");
+      return i.reply({ embeds: [embed] });
+    }
+
+    if (name === "kick") {
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
+      const target = i.options.getUser("usuario");
+      const razon = i.options.getString("razon") || "Sin razón";
+      const member = await i.guild.members.fetch(target.id);
+
+      if (!member.kickable) return i.reply({ content: "❌ No puedo expulsar a este usuario.", ephemeral: true });
+
+      await member.kick(razon);
+
+      const embed = new EmbedBuilder()
+        .setTitle("👢 Usuario Expulsado")
+        .addFields(
+          { name: "Usuario", value: target.tag },
+          { name: "Moderador", value: i.user.tag },
+          { name: "Razón", value: razon }
+        )
+        .setColor("Orange")
+        .setTimestamp();
+
+      await sendLog(i.guild, embed);
+      return i.reply({ embeds: [embed] });
+    }
+
+    if (name === "ban") {
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
+      const target = i.options.getUser("usuario");
+      const razon = i.options.getString("razon") || "Sin razón";
+      const member = await i.guild.members.fetch(target.id).catch(() => null);
+
+      if (member && !member.bannable) return i.reply({ content: "❌ No puedo banear a este usuario.", ephemeral: true });
+
+      await i.guild.members.ban(target.id, { reason: razon });
+
+      const embed = new EmbedBuilder()
+        .setTitle("🔨 Usuario Baneado")
+        .addFields(
+          { name: "Usuario", value: target.tag },
+          { name: "Moderador", value: i.user.tag },
+          { name: "Razón", value: razon }
+        )
+        .setColor("Red")
+        .setTimestamp();
+
+      await sendLog(i.guild, embed);
+      return i.reply({ embeds: [embed] });
+    }
+
+    if (name === "warn") {
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
+      const target = i.options.getUser("usuario");
+      const razon = i.options.getString("razon");
+
+      if (target.bot) return i.reply({ content: "❌ No puedes advertir a bots.", ephemeral: true });
+
+      const warnCount = addWarn(target.id, i.guild.id, razon, i.user.id);
+
+      const embed = new EmbedBuilder()
+        .setTitle("⚠️ Usuario Advertido")
+        .addFields(
+          { name: "Usuario", value: target.tag },
+          { name: "Moderador", value: i.user.tag },
+          { name: "Razón", value: razon },
+          { name: "Advertencias totales", value: `${warnCount}` }
+        )
+        .setColor("Yellow")
+        .setTimestamp();
+
+      await sendLog(i.guild, embed);
+      return i.reply({ embeds: [embed] });
+    }
+
+    if (name === "warnings") {
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
+      const target = i.options.getUser("usuario");
+      const warns = getWarns(target.id, i.guild.id);
+
+      if (warns.length === 0) {
+        return i.reply({ content: `✅ ${target.username} no tiene advertencias.`, ephemeral: true });
+      }
+
+      const description = warns.map((w, idx) =>
+        `**${idx + 1}.** <@${w.moderatorId}> - ${w.reason}\n<t:${Math.floor(w.timestamp / 1000)}:R>`
+      ).join("\n\n");
+
+      const embed = new EmbedBuilder()
+        .setTitle(`⚠️ Advertencias de ${target.username}`)
+        .setDescription(description)
+        .setColor("Yellow");
+
+      return i.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (name === "clearwarns") {
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
+      const target = i.options.getUser("usuario");
+      clearWarns(target.id, i.guild.id);
+      return i.reply(`✅ Advertencias de ${target.username} limpiadas.`);
+    }
+
+    if (name === "timeout") {
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
+      const target = i.options.getUser("usuario");
+      const minutos = i.options.getInteger("minutos");
+      const razon = i.options.getString("razon") || "Sin razón";
+
+      if (minutos < 1 || minutos > 40320) return i.reply({ content: "❌ Entre 1 min y 28 días.", ephemeral: true });
+
+      const member = await i.guild.members.fetch(target.id);
+      if (!member.moderatable) return i.reply({ content: "❌ No puedo silenciar a este usuario.", ephemeral: true });
+
+      await member.timeout(minutos * 60 * 1000, razon);
+
+      const embed = new EmbedBuilder()
+        .setTitle("🔇 Usuario Silenciado")
+        .addFields(
+          { name: "Usuario", value: target.tag },
+          { name: "Moderador", value: i.user.tag },
+          { name: "Duración", value: `${minutos} minutos` },
+          { name: "Razón", value: razon }
+        )
+        .setColor("DarkRed")
+        .setTimestamp();
+
+      await sendLog(i.guild, embed);
+      return i.reply({ embeds: [embed] });
+    }
+
+    if (name === "clear") {
+      if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
+      const cantidad = i.options.getInteger("cantidad");
+      if (cantidad < 1 || cantidad > 100) return i.reply({ content: "❌ Entre 1 y 100.", ephemeral: true });
+
+      const deleted = await i.channel.bulkDelete(cantidad, true);
+      return i.reply({ content: `🗑️ Eliminados **${deleted.size}** mensajes.`, ephemeral: true });
+    }
+
+    if (name === "premium") {
+      const status = isPremium(i.user.id);
+      const userData = premiumUsers[i.user.id];
+
+      const embed = new EmbedBuilder()
+        .setTitle("⭐ Sistema Premium")
+        .setDescription(status
+          ? `¡Eres usuario Premium!\n\n**Plan:** ${userData.tier === "monthly" ? "Mensual" : "De por vida"}\n${userData.tier === "monthly" ? `**Expira:** <t:${Math.floor(userData.expiresAt / 1000)}:R>` : "**Duración:** Permanente"}`
+          : "No tienes Premium activo.")
+        .addFields(
+          { name: "🎁 Beneficios Premium", value: "• 2x XP en mensajes\n• 50% más recompensas (daily/work)\n• Comando `/premiumdaily` exclusivo\n• Comando `/megaslots` con x5 multiplicador\n• Badge especial en comandos" },
+          { name: "💳 Planes", value: "**Mensual:** $9.99/mes\n**De por vida:** $49.99 (pago único)" },
+          { name: "📝 Activar", value: "Usa `/buypremium` para empezar" }
+        )
+        .setColor(status ? "Gold" : "Grey");
+
+      return i.reply({ embeds: [embed] });
+    }
+
+    if (name === "buypremium") {
+      const plan = i.options.getString("plan");
+
+      try {
+        const url = await createCheckoutSession(i.user.id, plan);
+
+        const embed = new EmbedBuilder()
+          .setTitle("💳 Checkout de Premium")
+          .setDescription(`Haz clic en el botón de abajo para completar tu compra.\n\n**Plan:** ${plan === "monthly" ? "Mensual ($9.99/mes)" : "De por vida ($49.99)"}\n\nUna vez completado el pago, tu Premium se activará automáticamente.`)
+          .setColor("Gold");
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel("Ir al Checkout")
+            .setStyle(ButtonStyle.Link)
+            .setURL(url)
+        );
+
+        return i.reply({ embeds: [embed], components: [row], ephemeral: true });
+      } catch (error) {
+        console.error("Error creando checkout:", error);
+        return i.reply({ content: "❌ Error al crear la sesión de pago. Contacta al soporte.", ephemeral: true });
+      }
+    }
+
+    if (name === "premiumdaily") {
+      if (!isPremium(i.user.id)) {
+        return i.reply({
+          content: "⭐ Este comando es exclusivo para usuarios Premium. Usa `/premium` para más info.",
+          ephemeral: true
+        });
+      }
+
+      const u = ensureUserEconomy(i.user.id);
+      const cd = canUseCooldown(u.lastDaily, 12 * 60 * 60 * 1000);
+      if (!cd.ok) return i.reply({ content: `⏳ Vuelve en **${fmtMs(cd.left)}**.`, ephemeral: true });
+
+      const amount = Math.floor(Math.random() * 401) + 300;
+      u.lastDaily = Date.now();
+      addMoney(i.user.id, amount);
+
+      return i.reply(`⭐ **Premium Daily:** **+${amount}**! (12h cooldown) Saldo: **${getBalance(i.user.id)}**`);
+    }
+
+    if (name === "megaslots") {
+      if (!isPremium(i.user.id)) {
+        return i.reply({
+          content: "⭐ Este comando es exclusivo para usuarios Premium. Usa `/premium` para más info.",
+          ephemeral: true
+        });
+      }
+
+      const cantidad = i.options.getInteger("cantidad");
+      if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral: true });
+      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente.", ephemeral: true });
+
+      const symbols = ["💎", "⭐", "👑", "🔥", "💰"];
+      const r = () => symbols[Math.floor(Math.random() * symbols.length)];
+      const res = [r(), r(), r()];
+
+      let multiplier = 0;
+      if (res[0] === res[1] && res[1] === res[2]) {
+        multiplier = 5;
+      } else if (res[0] === res[1] || res[1] === res[2] || res[0] === res[2]) {
+        multiplier = 2;
+      }
+
+      const ganancia = multiplier > 0 ? cantidad * multiplier : -cantidad;
+      addMoney(i.user.id, ganancia);
+
+      return i.reply(`⭐ **MEGA SLOTS** ⭐\n🎰 ${res.join(" | ")}\n\n${multiplier > 0 ? `🎉 ¡GANASTE x${multiplier}! +${ganancia}` : `💸 Perdiste -${cantidad}`}\n\nSaldo: **${getBalance(i.user.id)}**`);
+    }
+
+    // ⭐ COMANDO GIVEPREMIUM (SOLO OWNER)
+    if (name === "givepremium") {
+      // Verificar que el usuario sea el owner
+      if (i.user.id !== OWNER_ID) {
+        return i.reply({
+          content: "❌ Este comando es exclusivo del creador del bot.",
+          ephemeral: true
+        });
+      }
+
+      const target = i.options.getUser("usuario");
+      const plan = i.options.getString("plan");
+
+      // Activar premium
+      await activatePremium(target.id, plan);
+
+      // Crear embed de confirmación
+      const embed = new EmbedBuilder()
+        .setTitle("👑 Premium Otorgado")
+        .setDescription(`Premium activado exitosamente para ${target.username}`)
+        .addFields(
+          { name: "Usuario", value: `<@${target.id}>`, inline: true },
+          { name: "Plan", value: plan === "monthly" ? "Mensual (30 días)" : "De por vida", inline: true },
+          { name: "Otorgado por", value: `<@${i.user.id}>`, inline: true }
+        )
+        .setColor("Gold")
+        .setTimestamp()
+        .setFooter({ text: "Sistema Premium" });
+
+      // Log en consola
+      console.log(`👑 Premium otorgado manualmente: ${target.tag} (${target.id}) - ${plan} - Por: ${i.user.tag}`);
+
+      return i.reply({ embeds: [embed], ephemeral: true });
+    }
   }
 
-  const description = data.map((d, i) => `**${i + 1}.** <@${d.id}> - ${tipo === "money" ? `💰 ${d.value}` : `⭐ Nivel ${d.value}`}`).join("\n") || "Sin datos";
-  
-  const embed = new EmbedBuilder()
-    .setTitle(`🏆 Top ${tipo === "money" ? "Dinero" : "Niveles"}`)
-    .setDescription(description)
-    .setColor("Gold");
-  return i.reply({ embeds: [embed] });
-}
-
-if (name === "8ball") {
-  const pregunta = i.options.getString("pregunta");
-  const respuestas = [
-    "Sí", "No", "Tal vez", "Definitivamente", "No lo creo",
-    "Pregunta de nuevo", "Sin duda", "No cuentes con ello",
-    "Es probable", "No es seguro", "Mis fuentes dicen que no",
-    "Es cierto", "Mejor no decirte ahora", "Concéntrate y pregunta de nuevo"
-  ];
-  const respuesta = respuestas[Math.floor(Math.random() * respuestas.length)];
-  return i.reply(`🎱 **Pregunta:** ${pregunta}\n**Respuesta:** ${respuesta}`);
-}
-
-if (name === "dado") {
-  const caras = i.options.getInteger("caras") || 6;
-  if (caras < 2 || caras > 100) return i.reply({ content: "❌ Entre 2 y 100 caras.", ephemeral: true });
-  const resultado = Math.floor(Math.random() * caras) + 1;
-  return i.reply(`🎲 Lanzaste un dado de ${caras} caras: **${resultado}**`);
-}
-
-if (name === "meme") {
-  const memes = [
-    "https://i.imgur.com/2Z8QZ0M.jpg",
-    "https://i.imgur.com/7gFqrNs.jpg",
-    "https://i.imgur.com/xGQ4k2l.jpg",
-    "https://i.imgur.com/YxhkAWZ.jpg",
-    "https://i.imgur.com/5FM9rJV.jpg",
-  ];
-  const meme = memes[Math.floor(Math.random() * memes.length)];
-  const embed = new EmbedBuilder()
-    .setTitle("😂 Meme Aleatorio")
-    .setImage(meme)
-    .setColor("Random");
-  return i.reply({ embeds: [embed] });
-}
-
-if (name === "kick") {
-  const target = i.options.getUser("usuario");
-  const razon = i.options.getString("razon") || "Sin razón";
-  const member = await i.guild.members.fetch(target.id);
-  
-  if (!member.kickable) return i.reply({ content: "❌ No puedo expulsar a este usuario.", ephemeral: true });
-  
-  await member.kick(razon);
-  
-  const embed = new EmbedBuilder()
-    .setTitle("👢 Usuario Expulsado")
-    .addFields(
-      { name: "Usuario", value: target.tag },
-      { name: "Moderador", value: i.user.tag },
-      { name: "Razón", value: razon }
-    )
-    .setColor("Orange")
-    .setTimestamp();
-  
-  await sendLog(i.guild, embed);
-  return i.reply({ embeds: [embed] });
-}
-
-if (name === "ban") {
-  const target = i.options.getUser("usuario");
-  const razon = i.options.getString("razon") || "Sin razón";
-  const member = await i.guild.members.fetch(target.id).catch(() => null);
-  
-  if (member && !member.bannable) return i.reply({ content: "❌ No puedo banear a este usuario.", ephemeral: true });
-  
-  await i.guild.members.ban(target.id, { reason: razon });
-  
-  const embed = new EmbedBuilder()
-    .setTitle("🔨 Usuario Baneado")
-    .addFields(
-      { name: "Usuario", value: target.tag },
-      { name: "Moderador", value: i.user.tag },
-      { name: "Razón", value: razon }
-    )
-    .setColor("Red")
-    .setTimestamp();
-  
-  await sendLog(i.guild, embed);
-  return i.reply({ embeds: [embed] });
-}
-
-if (name === "warn") {
-  const target = i.options.getUser("usuario");
-  const razon = i.options.getString("razon");
-  
-  if (target.bot) return i.reply({ content: "❌ No puedes advertir a bots.", ephemeral: true });
-  
-  const warnCount = addWarn(target.id, i.guild.id, razon, i.user.id);
-  
-  const embed = new EmbedBuilder()
-    .setTitle("⚠️ Usuario Advertido")
-    .addFields(
-      { name: "Usuario", value: target.tag },
-      { name: "Moderador", value: i.user.tag },
-      { name: "Razón", value: razon },
-      { name: "Advertencias totales", value: `${warnCount}` }
-    )
-    .setColor("Yellow")
-    .setTimestamp();
-  
-  await sendLog(i.guild, embed);
-  return i.reply({ embeds: [embed] });
-}
-
-if (name === "warnings") {
-  const target = i.options.getUser("usuario");
-  const warns = getWarns(target.id, i.guild.id);
-  
-  if (warns.length === 0) {
-    return i.reply({ content: `✅ ${target.username} no tiene advertencias.`, ephemeral: true });
-  }
-  
-  const description = warns.map((w, idx) => 
-    `**${idx + 1}.** <@${w.moderatorId}> - ${w.reason}\n<t:${Math.floor(w.timestamp / 1000)}:R>`
-  ).join("\n\n");
-  
-  const embed = new EmbedBuilder()
-    .setTitle(`⚠️ Advertencias de ${target.username}`)
-    .setDescription(description)
-    .setColor("Yellow");
-  
-  return i.reply({ embeds: [embed], ephemeral: true });
-}
-
-if (name === "clearwarns") {
-  const target = i.options.getUser("usuario");
-  clearWarns(target.id, i.guild.id);
-  return i.reply(`✅ Advertencias de ${target.username} limpiadas.`);
-}
-
-if (name === "timeout") {
-  const target = i.options.getUser("usuario");
-  const minutos = i.options.getInteger("minutos");
-  const razon = i.options.getString("razon") || "Sin razón";
-  
-  if (minutos < 1 || minutos > 40320) return i.reply({ content: "❌ Entre 1 min y 28 días.", ephemeral: true });
-  
-  const member = await i.guild.members.fetch(target.id);
-  if (!member.moderatable) return i.reply({ content: "❌ No puedo silenciar a este usuario.", ephemeral: true });
-  
-  await member.timeout(minutos * 60 * 1000, razon);
-  
-  const embed = new EmbedBuilder()
-    .setTitle("🔇 Usuario Silenciado")
-    .addFields(
-      { name: "Usuario", value: target.tag },
-      { name: "Moderador", value: i.user.tag },
-      { name: "Duración", value: `${minutos} minutos` },
-      { name: "Razón", value: razon }
-    )
-    .setColor("DarkRed")
-    .setTimestamp();
-  
-  await sendLog(i.guild, embed);
-  return i.reply({ embeds: [embed] });
-}
-
-if (name === "clear") {
-  const cantidad = i.options.getInteger("cantidad");
-  if (cantidad < 1 || cantidad > 100) return i.reply({ content: "❌ Entre 1 y 100.", ephemeral: true });
-  
-  const deleted = await i.channel.bulkDelete(cantidad, true);
-  return i.reply({ content: `🗑️ Eliminados **${deleted.size}** mensajes.`, ephemeral: true });
-}
-
-if (name === "premium") {
-  const status = isPremium(i.user.id);
-  const userData = premiumUsers[i.user.id];
-  
-  const embed = new EmbedBuilder()
-    .setTitle("⭐ Sistema Premium")
-    .setDescription(status 
-      ? `¡Eres usuario Premium!\n\n**Plan:** ${userData.tier === "monthly" ? "Mensual" : "De por vida"}\n${userData.tier === "monthly" ? `**Expira:** <t:${Math.floor(userData.expiresAt / 1000)}:R>` : "**Duración:** Permanente"}`
-      : "No tienes Premium activo.")
-    .addFields(
-      { name: "🎁 Beneficios Premium", value: "• 2x XP en mensajes\n• 50% más recompensas (daily/work)\n• Comando `/premiumdaily` exclusivo\n• Comando `/megaslots` con x5 multiplicador\n• Badge especial en comandos\n• Sin cooldowns reducidos" },
-      { name: "💳 Planes", value: "**Mensual:** $9.99/mes\n**De por vida:** $49.99 (pago único)" },
-      { name: "📝 Activar", value: "Usa `/buypremium` para empezar" }
-    )
-    .setColor(status ? "Gold" : "Grey");
-  
-  return i.reply({ embeds: [embed] });
-}
-
-if (name === "buypremium") {
-  const plan = i.options.getString("plan");
-  
-  try {
-    const url = await createCheckoutSession(i.user.id, plan);
+  // BOTONES DE TICKETS
+  if (i.isButton() && (i.customId === "support_es" || i.customId === "support_en")) {
+    if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
     
-    const embed = new EmbedBuilder()
-      .setTitle("💳 Checkout de Premium")
-      .setDescription(`Haz clic en el botón de abajo para completar tu compra.\n\n**Plan:** ${plan === "monthly" ? "Mensual ($9.99/mes)" : "De por vida ($49.99)"}\n\nUna vez completado el pago, tu Premium se activará automáticamente.`)
-      .setColor("Gold");
-    
-    const row = new ActionRowBuilder().addComponents(
+    const channel = await i.guild.channels.create({
+      name: `ticket-${i.user.username}`,
+      type: ChannelType.GuildText,
+      permissionOverwrites: [
+        { id: i.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+        {
+          id: i.user.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.AttachFiles,
+          ],
+        },
+        ...STAFF_ROLE_IDS.map(id => ({
+          id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+          ],
+        })),
+      ],
+    });
+
+    const closeButton = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setLabel("Ir al Checkout")
-        .setStyle(ButtonStyle.Link)
-        .setURL(url)
+        .setCustomId("close_ticket")
+        .setLabel("Cerrar Ticket")
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji("🔒")
     );
-    
-    return i.reply({ embeds: [embed], components: [row], ephemeral: true });
-  } catch (error) {
-    console.error("Error creando checkout:", error);
-    return i.reply({ content: "❌ Error al crear la sesión de pago. Contacta al soporte.", ephemeral: true });
-  }
-}
 
-if (name === "premiumdaily") {
-  if (!isPremium(i.user.id)) {
-    return i.reply({ 
-      content: "⭐ Este comando es exclusivo para usuarios Premium. Usa `/premium` para más info.", 
-      ephemeral: true 
+    await channel.send({
+      content: `${i.user}`,
+      embeds: [
+        new EmbedBuilder()
+          .setTitle(i.customId === "support_es" ? "🎫 Ticket de Soporte" : "🎫 Support Ticket")
+          .setDescription(
+            i.customId === "support_es"
+              ? "Gracias por crear un ticket. El equipo te atenderá pronto.\n\nDescribe tu problema o pregunta."
+              : "Thanks for creating a ticket. The support team will assist you shortly.\n\nDescribe your issue or question."
+          )
+          .setColor("Green")
+          .setTimestamp(),
+      ],
+      components: [closeButton],
     });
-  }
-  
-  const u = ensureUserEconomy(i.user.id);
-  const cd = canUseCooldown(u.lastDaily, 12 * 60 * 60 * 1000);
-  if (!cd.ok) return i.reply({ content: `⏳ Vuelve en **${fmtMs(cd.left)}**.`, ephemeral: true });
-  
-  const amount = Math.floor(Math.random() * 401) + 300;
-  u.lastDaily = Date.now();
-  addMoney(i.user.id, amount);
-  
-  return i.reply(`⭐ **Premium Daily:** **+${amount}**! (12h cooldown) Saldo: **${getBalance(i.user.id)}**`);
-}
 
-if (name === "megaslots") {
-  if (!isPremium(i.user.id)) {
-    return i.reply({ 
-      content: "⭐ Este comando es exclusivo para usuarios Premium. Usa `/premium` para más info.", 
-      ephemeral: true 
-    });
+    await i.reply({ content: `✅ Ticket creado: ${channel}`, ephemeral: true });
   }
-  
-  const cantidad = i.options.getInteger("cantidad");
-  if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral: true });
-  if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente.", ephemeral: true });
-  
-  const symbols = ["💎", "⭐", "👑", "🔥", "💰"];
-  const r = () => symbols[Math.floor(Math.random() * symbols.length)];
-  const res = [r(), r(), r()];
-  
-  let multiplier = 0;
-  if (res[0] === res[1] && res[1] === res[2]) {
-    multiplier = 5;
-  } else if (res[0] === res[1] || res[1] === res[2] || res[0] === res[2]) {
-    multiplier = 2;
-  }
-  
-  const ganancia = multiplier > 0 ? cantidad * multiplier : -cantidad;
-  addMoney(i.user.id, ganancia);
-  
-  return i.reply(`⭐ **MEGA SLOTS** ⭐\n🎰 ${res.join(" | ")}\n\n${multiplier > 0 ? `🎉 ¡GANASTE x${multiplier}! +${ganancia}` : `💸 Perdiste -${cantidad}`}\n\nSaldo: **${getBalance(i.user.id)}**`);
-}
-}
-if (i.isButton() && (i.customId === "support_es" || i.customId === "support_en")) {
-const channel = await i.guild.channels.create({
-name: `ticket-${i.user.username}`,
-type: ChannelType.GuildText,
-permissionOverwrites: [
-{ id: i.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-{
-id: i.user.id,
-allow: [
-PermissionFlagsBits.ViewChannel,
-PermissionFlagsBits.SendMessages,
-PermissionFlagsBits.ReadMessageHistory,
-PermissionFlagsBits.AttachFiles,
-],
-},
-...STAFF_ROLE_IDS.map(id => ({
-id,
-allow: [
-PermissionFlagsBits.ViewChannel,
-PermissionFlagsBits.SendMessages,
-PermissionFlagsBits.ReadMessageHistory,
-],
-})),
-],
-});
-const closeButton = new ActionRowBuilder().addComponents(
-  new ButtonBuilder()
-    .setCustomId("close_ticket")
-    .setLabel("Cerrar Ticket")
-    .setStyle(ButtonStyle.Danger)
-    .setEmoji("🔒")
-);
 
-await channel.send({
-  content: `${i.user}`,
-  embeds: [
-    new EmbedBuilder()
-      .setTitle(i.customId === "support_es" ? "🎫 Ticket de Soporte" : "🎫 Support Ticket")
-      .setDescription(
-        i.customId === "support_es"
-          ? "Gracias por crear un ticket. El equipo te atenderá pronto.\n\nDescribe tu problema o pregunta."
-          : "Thanks for creating a ticket. The support team will assist you shortly.\n\nDescribe your issue or question."
-      )
-      .setColor("Green")
-      .setTimestamp(),
-  ],
-  components: [closeButton],
+  if (i.isButton() && i.customId === "close_ticket") {
+    const hasStaffRole = i.member.roles.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
+    if (!hasStaffRole && !i.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return i.reply({ content: "❌ Solo el staff puede cerrar tickets.", ephemeral: true });
+    }
+
+    await i.reply("🔒 Cerrando ticket en 5 segundos...");
+    setTimeout(() => i.channel.delete(), 5000);
+  }
 });
 
-await i.reply({ content: `✅ Ticket creado: ${channel}`, ephemeral: true });
-}
-if (i.isButton() && i.customId === "close_ticket") {
-const hasStaffRole = i.member.roles.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
-if (!hasStaffRole && !i.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-return i.reply({ content: "❌ Solo el staff puede cerrar tickets.", ephemeral: true });
-}
-await i.reply("🔒 Cerrando ticket en 5 segundos...");
-setTimeout(() => i.channel.delete(), 5000);
-}
-});
 (async () => {
-await registerCommands();
-await client.login(TOKEN);
+  await registerCommands();
+  await client.login(TOKEN);
 })();
+</artifact>
