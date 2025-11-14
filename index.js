@@ -1,4 +1,4 @@
- ==========================IMPORTS=======================
+// ========================== IMPORTS ==========================
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
@@ -23,7 +23,7 @@ const {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-const OWNER_ID = process.env.OWNER_ID; // TU USER ID
+const OWNER_ID = process.env.OWNER_ID;
 
 const STAFF_ROLE_IDS = [
   "1405183233293025382",
@@ -33,7 +33,6 @@ const STAFF_ROLE_IDS = [
 
 const LOGS_CHANNEL_ID = process.env.LOGS_CHANNEL_ID || null;
 
-// PRICE IDS REALES DE STRIPE
 const STRIPE_PRICE_IDS = {
   lifetime: "price_1SSkvlLbqLRphi0MhFwCpLWI",
   monthly: "price_1SSkuhLbqLRphi0MPO5ToNxV",
@@ -154,7 +153,7 @@ async function createCheckoutSession(userId, tier) {
   return session.url;
 }
 
-// ========================== ECONOMÍA HELPERS ==========================
+// ========================== ECONOMIA HELPERS ==========================
 function ensureUserEconomy(userId) {
   if (!economy[userId]) economy[userId] = { money: 200, lastDaily: 0, lastWork: 0, bank: 0 };
   return economy[userId];
@@ -185,7 +184,7 @@ function fmtMs(ms) {
   return `${h}h ${m}m ${ss}s`;
 }
 
-// ========================== XP / NIVELES HELPERS ==========================
+// ========================== XP HELPERS ==========================
 function ensureUserLevel(userId) {
   if (!levels[userId]) levels[userId] = { xp: 0, level: 1, lastGain: 0 };
   return levels[userId];
@@ -248,7 +247,7 @@ async function sendLog(guild, embed) {
   }
 }
 
-// ========================== SLASH COMMANDS (GLOBALES) ==========================
+// ========================== SLASH COMMANDS ==========================
 const slashDefs = [
   new SlashCommandBuilder()
     .setName("ping")
@@ -464,7 +463,6 @@ const slashDefs = [
     .setIntegrationTypes([0, 1])
     .setContexts([0, 1, 2]),
 
-  // ⭐ NUEVO COMANDO: GIVE PREMIUM (SOLO OWNER)
   new SlashCommandBuilder()
     .setName("givepremium")
     .setDescription("👑 [OWNER] Da Premium a un usuario manualmente")
@@ -481,14 +479,14 @@ const slashDefs = [
 
 ].map(cmd => cmd.toJSON());
 
-// ========================== REGISTRO DE COMANDOS GLOBALES ==========================
+// ========================== REGISTRO DE COMANDOS ==========================
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 async function registerCommands() {
   try {
     console.log("⚙️ Registrando comandos GLOBALES...");
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: slashDefs });
-    console.log("✅ Comandos globales registrados. Pueden tardar hasta 1 hora en aparecer.");
+    console.log("✅ Comandos globales registrados.");
   } catch (e) {
     console.error("❌ Error registrando comandos:", e);
   }
@@ -506,7 +504,7 @@ client.on("messageCreate", (msg) => {
   tryAddXP(msg.author.id, msg.channel);
 });
 
-// ========================== LOGS DE EVENTOS ==========================
+// ========================== LOGS ==========================
 client.on("guildMemberAdd", async (member) => {
   const embed = new EmbedBuilder()
     .setTitle("📥 Miembro nuevo")
@@ -665,8 +663,7 @@ client.on("interactionCreate", async (i) => {
       addMoney(i.user.id, -cantidad);
       addMoney(target.id, cantidad);
       return i.reply(`✅ Transferiste **${cantidad}** a **${target.username}**. Tu saldo: **${getBalance(i.user.id)}**`);
-    }
-
+    }```javascript
     if (name === "coinflip") {
       const eleccion = i.options.getString("eleccion");
       const cantidad = i.options.getInteger("cantidad");
@@ -985,9 +982,7 @@ client.on("interactionCreate", async (i) => {
       return i.reply(`⭐ **MEGA SLOTS** ⭐\n🎰 ${res.join(" | ")}\n\n${multiplier > 0 ? `🎉 ¡GANASTE x${multiplier}! +${ganancia}` : `💸 Perdiste -${cantidad}`}\n\nSaldo: **${getBalance(i.user.id)}**`);
     }
 
-    // ⭐ COMANDO GIVEPREMIUM (SOLO OWNER)
     if (name === "givepremium") {
-      // Verificar que el usuario sea el owner
       if (i.user.id !== OWNER_ID) {
         return i.reply({
           content: "❌ Este comando es exclusivo del creador del bot.",
@@ -998,10 +993,8 @@ client.on("interactionCreate", async (i) => {
       const target = i.options.getUser("usuario");
       const plan = i.options.getString("plan");
 
-      // Activar premium
       await activatePremium(target.id, plan);
 
-      // Crear embed de confirmación
       const embed = new EmbedBuilder()
         .setTitle("👑 Premium Otorgado")
         .setDescription(`Premium activado exitosamente para ${target.username}`)
@@ -1014,17 +1007,15 @@ client.on("interactionCreate", async (i) => {
         .setTimestamp()
         .setFooter({ text: "Sistema Premium" });
 
-      // Log en consola
-      console.log(`👑 Premium otorgado manualmente: ${target.tag} (${target.id}) - ${plan} - Por: ${i.user.tag}`);
+      console.log(`👑 Premium otorgado: ${target.tag} (${target.id}) - ${plan} - Por: ${i.user.tag}`);
 
       return i.reply({ embeds: [embed], ephemeral: true });
     }
   }
 
-  // BOTONES DE TICKETS
   if (i.isButton() && (i.customId === "support_es" || i.customId === "support_en")) {
     if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona en servidores.", ephemeral: true });
-    
+
     const channel = await i.guild.channels.create({
       name: `ticket-${i.user.username}`,
       type: ChannelType.GuildText,
@@ -1092,4 +1083,5 @@ client.on("interactionCreate", async (i) => {
   await registerCommands();
   await client.login(TOKEN);
 })();
+```
 </artifact>
