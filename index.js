@@ -673,7 +673,7 @@ client.on("interactionCreate", async (i) => {
   const win = resultado === eleccion;
   if (win) addMoney(i.user.id, cantidad);
   else addMoney(i.user.id, -cantidad);
-  return i.reply(`🪙 **${resultado}**. ${win ? "Ganaste" : "Perdiste"} **${cantidad}**. Saldo: **${getBalance(i.user.id)}**`);
+  return i.reply('🪙 **' + resultado + '**. ' + (win ? 'Ganaste' : 'Perdiste') + ' **' + cantidad + '**. Saldo: **' + getBalance(i.user.id) + '**');
 }
     if (name === "slots") {
       const cantidad = i.options.getInteger("cantidad");
