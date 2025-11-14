@@ -1,6 +1,3 @@
-¡Ah! Hay un error de sintaxis. Los comentarios tienen espacios en los `===`. Voy a corregirlo:
-
-<artifact identifier="discord-bot-premium-global" type="application/vnd.ant.code" language="javascript" title="index.js - Bot con Comandos Globales (Corregido)">
 // ========================== IMPORTS ==========================
 require("dotenv").config();
 const fs = require("fs");
@@ -1087,30 +1084,3 @@ client.on("interactionCreate", async (i) => {
 })();
 ```
 </artifact>
-
----
-
-## ✅ **Código corregido. Ahora sube los cambios:**
-
-```bash
-git add index.js
-git commit -m "Corregir sintaxis y añadir givepremium"
-git push origin main
-```
-
----
-
-## 📝 **No olvides añadir tu OWNER_ID a Render:**
-
-1. Ve a Render → Environment
-2. Add Environment Variable:
-   ```
-   OWNER_ID = TU_USER_ID_AQUI
-   ```
-3. Save Changes
-
----
-
-**Render se redesplegará automáticamente y el bot debería funcionar correctamente.** 🚀
-
-Dime si todo funciona o si hay algún error en los logs.
