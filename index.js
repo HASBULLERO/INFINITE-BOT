@@ -676,21 +676,21 @@ client.on("interactionCreate", async (i) => {
   return i.reply('🪙 **' + resultado + '**. ' + (win ? 'Ganaste' : 'Perdiste') + ' **' + cantidad + '**. Saldo: **' + getBalance(i.user.id) + '**');
 }
     if (name === "slots") {
-      const cantidad = i.options.getInteger("cantidad");
-      if (cantidad <= 0) return i.reply({ content: "❌ Cantidad inválida.", ephemeral: true });
-      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "❌ No tienes suficiente.", ephemeral: true });
-      const symbols = ["🍒", "🍋", "🔔", "⭐", "7️⃣"];
-      const r = () => symbols[Math.floor(Math.random() * symbols.length)];
-      const res = [r(), r(), r()];
-      let win = false;
-      let ganho = 0;
-      if (res[0] === res[1] && res[1] === res[2]) {
-        win = true;
-        ganho = cantidad * 3;
-      }
-      addMoney(i.user.id, win ? ganho : -cantidad);
-      return i.reply(`🎰 ${res.join(" | ")}\n${win ? "¡Ganaste!" : "Perdiste"} ${win ? ganho : cantidad}. Saldo: **${getBalance(i.user.id)}**`);
-    }
+  const cantidad = i.options.getInteger("cantidad");
+  if (cantidad <= 0) return i.reply({ content: "Cantidad invalida.", ephemeral: true });
+  if (getBalance(i.user.id) < cantidad) return i.reply({ content: "No tienes suficiente.", ephemeral: true });
+  const symbols = ["cereza", "limon", "campana", "estrella", "siete"];
+  const r = () => symbols[Math.floor(Math.random() * symbols.length)];
+  const res = [r(), r(), r()];
+  let win = false;
+  let ganho = 0;
+  if (res[0] === res[1] && res[1] === res[2]) {
+    win = true;
+    ganho = cantidad * 3;
+  }
+  addMoney(i.user.id, win ? ganho : -cantidad);
+  return i.reply("Slots: " + res.join(" | ") + "\n" + (win ? "Ganaste" : "Perdiste") + " " + (win ? ganho : cantidad) + ". Saldo: **" + getBalance(i.user.id) + "**");
+}
 
     if (name === "leaderboard") {
       const tipo = i.options.getString("tipo");
