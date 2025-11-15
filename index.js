@@ -1,8 +1,7 @@
 // ========================== IMPORTS ==========================
 require("dotenv").config();
-const fs = require("fs");
-const path = require("path");
 const express = require("express");
+const mongoose = require("mongoose");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const {
   Client,
@@ -24,6 +23,7 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 const OWNER_ID = process.env.OWNER_ID;
+const MONGO_URI = process.env.MONGO_URI; // NUEVA VARIABLE
 
 const STAFF_ROLE_IDS = [
   "1405183233293025382",
@@ -37,6 +37,44 @@ const STRIPE_PRICE_IDS = {
   lifetime: "price_1SSkvlLbqLRphi0MhFwCpLWI",
   monthly: "price_1SSkuhLbqLRphi0MPO5ToNxV",
 };
+
+// ========================== MONGODB SCHEMAS ==========================
+const economySchema = new mongoose.Schema({
+  userId: { type: String, required: true, unique: true },
+  money: { type: Number, default: 200 },
+  bank: { type: Number, default: 0 },
+  lastDaily: { type: Number, default: 0 },
+  lastWork: { type: Number, default: 0 },
+});
+
+const levelSchema = new mongoose.Schema({
+  userId: { type: String, required: true, unique: true },
+  xp: { type: Number, default: 0 },
+  level: { type: Number, default: 1 },
+  lastGain: { type: Number, default: 0 },
+});
+
+const premiumUserSchema = new mongoose.Schema({
+  userId: { type: String, required: true, unique: true },
+  tier: { type: String, required: true },
+  activatedAt: { type: Number, required: true },
+  expiresAt: { type: Number, default: null },
+});
+
+const warningSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  warnings: [{
+    reason: String,
+    moderatorId: String,
+    timestamp: Number,
+  }],
+});
+
+// ========================== MODELS ==========================
+const Economy = mongoose.model("Economy", economySchema);
+const Level = mongoose.model("Level", levelSchema);
+const PremiumUser = mongoose.model("PremiumUser", premiumUserSchema);
+const Warning = mongoose.model("Warning", warningSchema);
 
 // ========================== CLIENT ==========================
 const client = new Client({
@@ -55,7 +93,7 @@ const client = new Client({
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-app.get("/", (_req, res) => res.send("Bot activo con sistema Premium"));
+app.get("/", (_req, res) => res.send("Bot activo con MongoDB"));
 
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
@@ -85,42 +123,17 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 app.use(express.json());
 app.listen(PORT, () => console.log("Web escuchando en puerto " + PORT));
 
-// ========================== PERSISTENCIA ==========================
-const ECON_PATH = path.join(__dirname, "economy.json");
-const XP_PATH = path.join(__dirname, "xp.json");
-const PREMIUM_PATH = path.join(__dirname, "premium.json");
-const WARNS_PATH = path.join(__dirname, "warnings.json");
+// ========================== DATABASE CONNECTION ==========================
+mongoose.connect(MONGO_URI)
+  .then(() => console.log("✅ Conectado a MongoDB"))
+  .catch(err => {
+    console.error("❌ Error conectando a MongoDB:", err);
+    process.exit(1);
+  });
 
-let economy = {};
-let levels = {};
-let premiumUsers = {};
-let warnings = {};
-
-function loadJSON(file, fallback) {
-  try {
-    if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch (e) {
-    console.error("Error leyendo " + file, e);
-  }
-  return fallback;
-}
-
-function saveJSON(file, data) {
-  try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error("Error guardando " + file, e);
-  }
-}
-
-economy = loadJSON(ECON_PATH, {});
-levels = loadJSON(XP_PATH, {});
-premiumUsers = loadJSON(PREMIUM_PATH, {});
-warnings = loadJSON(WARNS_PATH, {});
-
-// ========================== PREMIUM ==========================
-function isPremium(userId) {
-  const user = premiumUsers[userId];
+// ========================== PREMIUM HELPERS ==========================
+async function isPremium(userId) {
+  const user = await PremiumUser.findOne({ userId });
   if (!user) return false;
   if (user.tier === "lifetime") return true;
   if (user.tier === "monthly" && user.expiresAt > Date.now()) return true;
@@ -128,12 +141,16 @@ function isPremium(userId) {
 }
 
 async function activatePremium(userId, tier) {
-  premiumUsers[userId] = {
-    tier,
-    activatedAt: Date.now(),
-    expiresAt: tier === "monthly" ? Date.now() + 30 * 24 * 60 * 60 * 1000 : null,
-  };
-  saveJSON(PREMIUM_PATH, premiumUsers);
+  await PremiumUser.findOneAndUpdate(
+    { userId },
+    {
+      userId,
+      tier,
+      activatedAt: Date.now(),
+      expiresAt: tier === "monthly" ? Date.now() + 30 * 24 * 60 * 60 * 1000 : null,
+    },
+    { upsert: true }
+  );
 }
 
 async function createCheckoutSession(userId, tier) {
@@ -148,21 +165,25 @@ async function createCheckoutSession(userId, tier) {
   return session.url;
 }
 
-// ========================== ECONOMIA ==========================
-function ensureUserEconomy(userId) {
-  if (!economy[userId]) economy[userId] = { money: 200, lastDaily: 0, lastWork: 0, bank: 0 };
-  return economy[userId];
+// ========================== ECONOMIA HELPERS ==========================
+async function ensureUserEconomy(userId) {
+  let user = await Economy.findOne({ userId });
+  if (!user) {
+    user = await Economy.create({ userId, money: 200, bank: 0, lastDaily: 0, lastWork: 0 });
+  }
+  return user;
 }
 
-function getBalance(userId) {
-  return ensureUserEconomy(userId).money;
+async function getBalance(userId) {
+  const user = await ensureUserEconomy(userId);
+  return user.money;
 }
 
-function addMoney(userId, amount) {
-  const u = ensureUserEconomy(userId);
-  u.money += amount;
-  if (u.money < 0) u.money = 0;
-  saveJSON(ECON_PATH, economy);
+async function addMoney(userId, amount) {
+  const user = await ensureUserEconomy(userId);
+  user.money += amount;
+  if (user.money < 0) user.money = 0;
+  await user.save();
 }
 
 function canUseCooldown(last, ms) {
@@ -179,23 +200,26 @@ function fmtMs(ms) {
   return h + "h " + m + "m " + ss + "s";
 }
 
-// ========================== XP ==========================
-function ensureUserLevel(userId) {
-  if (!levels[userId]) levels[userId] = { xp: 0, level: 1, lastGain: 0 };
-  return levels[userId];
+// ========================== XP HELPERS ==========================
+async function ensureUserLevel(userId) {
+  let user = await Level.findOne({ userId });
+  if (!user) {
+    user = await Level.create({ userId, xp: 0, level: 1, lastGain: 0 });
+  }
+  return user;
 }
 
 function neededXP(level) {
   return 100 * level;
 }
 
-function tryAddXP(userId, channel) {
-  const u = ensureUserLevel(userId);
+async function tryAddXP(userId, channel) {
+  const u = await ensureUserLevel(userId);
   const now = Date.now();
   if (now - u.lastGain < 60_000) return;
 
   let gain = Math.floor(Math.random() * 11) + 5;
-  if (isPremium(userId)) gain *= 2;
+  if (await isPremium(userId)) gain *= 2;
 
   u.xp += gain;
   u.lastGain = now;
@@ -206,27 +230,32 @@ function tryAddXP(userId, channel) {
     u.xp = 0;
     channel?.send("<@" + userId + "> subio a nivel " + u.level);
   }
-  saveJSON(XP_PATH, levels);
+  await u.save();
 }
 
-// ========================== WARNS ==========================
-function addWarn(userId, guildId, reason, moderatorId) {
+// ========================== WARNS HELPERS ==========================
+async function addWarn(userId, guildId, reason, moderatorId) {
   const key = guildId + "-" + userId;
-  if (!warnings[key]) warnings[key] = [];
-  warnings[key].push({ reason, moderatorId, timestamp: Date.now() });
-  saveJSON(WARNS_PATH, warnings);
-  return warnings[key].length;
+  let doc = await Warning.findOne({ key });
+  
+  if (!doc) {
+    doc = await Warning.create({ key, warnings: [] });
+  }
+  
+  doc.warnings.push({ reason, moderatorId, timestamp: Date.now() });
+  await doc.save();
+  return doc.warnings.length;
 }
 
-function getWarns(userId, guildId) {
+async function getWarns(userId, guildId) {
   const key = guildId + "-" + userId;
-  return warnings[key] || [];
+  const doc = await Warning.findOne({ key });
+  return doc ? doc.warnings : [];
 }
 
-function clearWarns(userId, guildId) {
+async function clearWarns(userId, guildId) {
   const key = guildId + "-" + userId;
-  delete warnings[key];
-  saveJSON(WARNS_PATH, warnings);
+  await Warning.deleteOne({ key });
 }
 
 // ========================== LOGS ==========================
@@ -311,9 +340,9 @@ client.once("ready", () => {
   client.user.setStatus("online");
 });
 
-client.on("messageCreate", (msg) => {
+client.on("messageCreate", async (msg) => {
   if (!msg.guild || msg.author.bot) return;
-  tryAddXP(msg.author.id, msg.channel);
+  await tryAddXP(msg.author.id, msg.channel);
 });
 
 client.on("guildMemberAdd", async (member) => {
@@ -394,7 +423,7 @@ client.on("interactionCreate", async (i) => {
     }
 
     if (name === "balance") {
-      const u = ensureUserEconomy(i.user.id);
+      const u = await ensureUserEconomy(i.user.id);
       const embed = new EmbedBuilder()
         .setTitle("Balance de " + i.user.username)
         .addFields(
@@ -403,65 +432,67 @@ client.on("interactionCreate", async (i) => {
           { name: "Total", value: String(u.money + (u.bank || 0)), inline: true }
         )
         .setColor("Green");
-      if (isPremium(i.user.id)) embed.setFooter({ text: "Usuario Premium" });
+      if (await isPremium(i.user.id)) embed.setFooter({ text: "Usuario Premium" });
       return i.reply({ embeds: [embed] });
     }
 
     if (name === "depositar") {
       const cantidad = i.options.getInteger("cantidad");
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
-      const u = ensureUserEconomy(i.user.id);
+      const u = await ensureUserEconomy(i.user.id);
       if (u.money < cantidad) return i.reply({ content: "No tienes suficiente efectivo", ephemeral: true });
       u.money -= cantidad;
       u.bank = (u.bank || 0) + cantidad;
-      saveJSON(ECON_PATH, economy);
+      await u.save();
       return i.reply("Depositaste **" + cantidad + "**. Banco: **" + u.bank + "**");
     }
 
     if (name === "retirar") {
       const cantidad = i.options.getInteger("cantidad");
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
-      const u = ensureUserEconomy(i.user.id);
+      const u = await ensureUserEconomy(i.user.id);
       if ((u.bank || 0) < cantidad) return i.reply({ content: "No tienes suficiente en el banco", ephemeral: true });
       u.bank -= cantidad;
       u.money += cantidad;
-      saveJSON(ECON_PATH, economy);
+      await u.save();
       return i.reply("Retiraste **" + cantidad + "**. Efectivo: **" + u.money + "**");
     }
 
     if (name === "daily") {
-      const u = ensureUserEconomy(i.user.id);
+      const u = await ensureUserEconomy(i.user.id);
       const cd = canUseCooldown(u.lastDaily, 24 * 60 * 60 * 1000);
       if (!cd.ok) return i.reply({ content: "Vuelve en **" + fmtMs(cd.left) + "**", ephemeral: true });
       let amount = Math.floor(Math.random() * 201) + 100;
-      if (isPremium(i.user.id)) amount = Math.floor(amount * 1.5);
+      if (await isPremium(i.user.id)) amount = Math.floor(amount * 1.5);
       u.lastDaily = Date.now();
-      addMoney(i.user.id, amount);
-      return i.reply("Daily: **+" + amount + "**" + (isPremium(i.user.id) ? " (Bonus Premium)" : "") + ". Saldo: **" + getBalance(i.user.id) + "**");
+      await u.save();
+      await addMoney(i.user.id, amount);
+      return i.reply("Daily: **+" + amount + "**" + (await isPremium(i.user.id) ? " (Bonus Premium)" : "") + ". Saldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "trabajar") {
-      const u = ensureUserEconomy(i.user.id);
+      const u = await ensureUserEconomy(i.user.id);
       const cd = canUseCooldown(u.lastWork, 30 * 60 * 1000);
       if (!cd.ok) return i.reply({ content: "Podras trabajar en **" + fmtMs(cd.left) + "**", ephemeral: true });
       let amount = Math.floor(Math.random() * 251) + 50;
-      if (isPremium(i.user.id)) amount = Math.floor(amount * 1.5);
+      if (await isPremium(i.user.id)) amount = Math.floor(amount * 1.5);
       u.lastWork = Date.now();
-      addMoney(i.user.id, amount);
-      return i.reply("Trabajaste: **+" + amount + "**" + (isPremium(i.user.id) ? " (Bonus Premium)" : "") + ". Saldo: **" + getBalance(i.user.id) + "**");
+      await u.save();
+      await addMoney(i.user.id, amount);
+      return i.reply("Trabajaste: **+" + amount + "**" + (await isPremium(i.user.id) ? " (Bonus Premium)" : "") + ". Saldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "apostar") {
       const cantidad = i.options.getInteger("cantidad");
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
-      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
+      if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
       const win = Math.random() < 0.5;
       if (win) {
-        addMoney(i.user.id, cantidad);
-        return i.reply("Ganaste **+" + cantidad + "**. Saldo: **" + getBalance(i.user.id) + "**");
+        await addMoney(i.user.id, cantidad);
+        return i.reply("Ganaste **+" + cantidad + "**. Saldo: **" + (await getBalance(i.user.id)) + "**");
       } else {
-        addMoney(i.user.id, -cantidad);
-        return i.reply("Perdiste **-" + cantidad + "**. Saldo: **" + getBalance(i.user.id) + "**");
+        await addMoney(i.user.id, -cantidad);
+        return i.reply("Perdiste **-" + cantidad + "**. Saldo: **" + (await getBalance(i.user.id)) + "**");
       }
     }
 
@@ -470,28 +501,28 @@ client.on("interactionCreate", async (i) => {
       const cantidad = i.options.getInteger("cantidad");
       if (target.bot || target.id === i.user.id) return i.reply({ content: "No valido", ephemeral: true });
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
-      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
-      addMoney(i.user.id, -cantidad);
-      addMoney(target.id, cantidad);
-      return i.reply("Transferiste **" + cantidad + "** a **" + target.username + "**. Tu saldo: **" + getBalance(i.user.id) + "**");
+      if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
+      await addMoney(i.user.id, -cantidad);
+      await addMoney(target.id, cantidad);
+      return i.reply("Transferiste **" + cantidad + "** a **" + target.username + "**. Tu saldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "coinflip") {
       const eleccion = i.options.getString("eleccion");
       const cantidad = i.options.getInteger("cantidad");
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
-      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
+      if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
       const resultado = Math.random() < 0.5 ? "cara" : "cruz";
       const win = resultado === eleccion;
-      if (win) addMoney(i.user.id, cantidad);
-      else addMoney(i.user.id, -cantidad);
-      return i.reply("Moneda: **" + resultado + "**. " + (win ? "Ganaste" : "Perdiste") + " **" + cantidad + "**. Saldo: **" + getBalance(i.user.id) + "**");
+      if (win) await addMoney(i.user.id, cantidad);
+      else await addMoney(i.user.id, -cantidad);
+      return i.reply("Moneda: **" + resultado + "**. " + (win ? "Ganaste" : "Perdiste") + " **" + cantidad + "**. Saldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "slots") {
       const cantidad = i.options.getInteger("cantidad");
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
-      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
+      if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
       const symbols = ["cereza", "limon", "campana", "estrella", "siete"];
       const r = () => symbols[Math.floor(Math.random() * symbols.length)];
       const res = [r(), r(), r()];
@@ -501,8 +532,8 @@ client.on("interactionCreate", async (i) => {
         win = true;
         ganho = cantidad * 3;
       }
-      addMoney(i.user.id, win ? ganho : -cantidad);
-      return i.reply("Slots: " + res.join(" | ") + "\n" + (win ? "Ganaste" : "Perdiste") + " " + (win ? ganho : cantidad) + ". Saldo: **" + getBalance(i.user.id) + "**");
+      await addMoney(i.user.id, win ? ganho : -cantidad);
+      return i.reply("Slots: " + res.join(" | ") + "\n" + (win ? "Ganaste" : "Perdiste") + " " + (win ? ganho : cantidad) + ". Saldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "leaderboard") {
@@ -510,15 +541,11 @@ client.on("interactionCreate", async (i) => {
       let data = [];
 
       if (tipo === "money") {
-        data = Object.entries(economy)
-          .map(([id, u]) => ({ id, value: u.money + (u.bank || 0) }))
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 10);
+        const users = await Economy.find({}).sort({ money: -1 }).limit(10);
+        data = users.map(u => ({ id: u.userId, value: u.money + (u.bank || 0) }));
       } else {
-        data = Object.entries(levels)
-          .map(([id, u]) => ({ id, value: u.level }))
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 10);
+        const users = await Level.find({}).sort({ level: -1 }).limit(10);
+        data = users.map(u => ({ id: u.userId, value: u.level }));
       }
 
       const description = data.map((d, idx) => {
@@ -623,7 +650,7 @@ client.on("interactionCreate", async (i) => {
 
       if (target.bot) return i.reply({ content: "No puedes advertir a bots", ephemeral: true });
 
-      const warnCount = addWarn(target.id, i.guild.id, razon, i.user.id);
+      const warnCount = await addWarn(target.id, i.guild.id, razon, i.user.id);
 
       const embed = new EmbedBuilder()
         .setTitle("Usuario Advertido")
@@ -643,7 +670,7 @@ client.on("interactionCreate", async (i) => {
     if (name === "warnings") {
       if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
       const target = i.options.getUser("usuario");
-      const warns = getWarns(target.id, i.guild.id);
+      const warns = await getWarns(target.id, i.guild.id);
 
       if (warns.length === 0) {
         return i.reply({ content: target.username + " no tiene advertencias", ephemeral: true });
@@ -664,7 +691,7 @@ client.on("interactionCreate", async (i) => {
     if (name === "clearwarns") {
       if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
       const target = i.options.getUser("usuario");
-      clearWarns(target.id, i.guild.id);
+      await clearWarns(target.id, i.guild.id);
       return i.reply("Advertencias de " + target.username + " limpiadas");
     }
 
@@ -706,8 +733,8 @@ client.on("interactionCreate", async (i) => {
     }
 
     if (name === "premium") {
-      const status = isPremium(i.user.id);
-      const userData = premiumUsers[i.user.id];
+      const status = await isPremium(i.user.id);
+      const userData = await PremiumUser.findOne({ userId: i.user.id });
 
       const embed = new EmbedBuilder()
         .setTitle("Sistema Premium")
@@ -750,26 +777,27 @@ client.on("interactionCreate", async (i) => {
     }
 
     if (name === "premiumdaily") {
-      if (!isPremium(i.user.id)) {
+      if (!(await isPremium(i.user.id))) {
         return i.reply({
           content: "Este comando es exclusivo para usuarios Premium. Usa /premium para mas info",
           ephemeral: true
         });
       }
 
-      const u = ensureUserEconomy(i.user.id);
+      const u = await ensureUserEconomy(i.user.id);
       const cd = canUseCooldown(u.lastDaily, 12 * 60 * 60 * 1000);
       if (!cd.ok) return i.reply({ content: "Vuelve en **" + fmtMs(cd.left) + "**", ephemeral: true });
 
       const amount = Math.floor(Math.random() * 401) + 300;
       u.lastDaily = Date.now();
-      addMoney(i.user.id, amount);
+      await u.save();
+      await addMoney(i.user.id, amount);
 
-      return i.reply("Premium Daily: **+" + amount + "**! (12h cooldown) Saldo: **" + getBalance(i.user.id) + "**");
+      return i.reply("Premium Daily: **+" + amount + "**! (12h cooldown) Saldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "megaslots") {
-      if (!isPremium(i.user.id)) {
+      if (!(await isPremium(i.user.id))) {
         return i.reply({
           content: "Este comando es exclusivo para usuarios Premium. Usa /premium para mas info",
           ephemeral: true
@@ -778,7 +806,7 @@ client.on("interactionCreate", async (i) => {
 
       const cantidad = i.options.getInteger("cantidad");
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
-      if (getBalance(i.user.id) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
+      if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
 
       const symbols = ["diamante", "estrella", "corona", "fuego", "dinero"];
       const r = () => symbols[Math.floor(Math.random() * symbols.length)];
@@ -792,9 +820,9 @@ client.on("interactionCreate", async (i) => {
       }
 
       const ganancia = multiplier > 0 ? cantidad * multiplier : -cantidad;
-      addMoney(i.user.id, ganancia);
+      await addMoney(i.user.id, ganancia);
 
-      return i.reply("MEGA SLOTS\nSlots: " + res.join(" | ") + "\n\n" + (multiplier > 0 ? "GANASTE x" + multiplier + "! +" + ganancia : "Perdiste -" + cantidad) + "\n\nSaldo: **" + getBalance(i.user.id) + "**");
+      return i.reply("MEGA SLOTS\nSlots: " + res.join(" | ") + "\n\n" + (multiplier > 0 ? "GANASTE x" + multiplier + "! +" + ganancia : "Perdiste -" + cantidad) + "\n\nSaldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "givepremium") {
