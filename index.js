@@ -304,27 +304,6 @@ const slashDefs = [
 // ========================== REGISTRO ==========================
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-async function deleteAllCommands() {
-  try {
-    console.log("Obteniendo comandos existentes...");
-    const existingCommands = await rest.get(Routes.applicationCommands(CLIENT_ID));
-    console.log("Comandos encontrados: " + existingCommands.length);
-
-    for (const cmd of existingCommands) {
-      try {
-        console.log("Eliminando: " + cmd.name);
-        await rest.delete(Routes.applicationCommand(CLIENT_ID, cmd.id));
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (err) {
-        console.log("No se pudo eliminar " + cmd.name);
-      }
-    }
-    console.log("Proceso completado");
-  } catch (e) {
-    console.error("Error en deleteAllCommands:", e);
-  }
-}
-
 async function registerCommands() {
   try {
     console.log("Registrando comandos globales...");
@@ -504,7 +483,7 @@ client.on("interactionCreate", async (i) => {
       if (target.bot || target.id === i.user.id) return i.reply({ content: "No valido", ephemeral: true });
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
       if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
-      await addMoney(i.user.id, -cantidad);```javascript
+      await addMoney(i.user.id, -cantidad);
       await addMoney(target.id, cantidad);
       return i.reply("Transferiste **" + cantidad + "** a **" + target.username + "**. Tu saldo: **" + (await getBalance(i.user.id)) + "**");
     }
@@ -517,6 +496,7 @@ client.on("interactionCreate", async (i) => {
       const resultado = Math.random() < 0.5 ? "cara" : "cruz";
       const win = resultado === eleccion;
       if (win) await addMoney(i.user.id, cantidad);
+      else await addMoney(```javascript
       else await addMoney(i.user.id, -cantidad);
       return i.reply("Moneda: **" + resultado + "**. " + (win ? "Ganaste" : "Perdiste") + " **" + cantidad + "**. Saldo: **" + (await getBalance(i.user.id)) + "**");
     }
@@ -877,7 +857,6 @@ client.on("interactionCreate", async (i) => {
     if (name === "setup") {
       if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
 
-      // CORRECCION: Usar i.channel en lugar de i.options.getChannel()
       const canalId = i.options.get("canal").value;
       const canal = await i.guild.channels.fetch(canalId).catch(() => null);
 
@@ -986,6 +965,7 @@ client.on("interactionCreate", async (i) => {
 
       return i.reply({ embeds: [embed] });
     }
+  }
 
   if (i.isButton() && i.customId === "create_ticket") {
     if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
@@ -1060,12 +1040,8 @@ client.on("interactionCreate", async (i) => {
 // ========================== INICIO ==========================
 (async () => {
   try {
-    // COMENTADO - Solo usar cuando necesites limpiar comandos
-    // await deleteAllCommands();
-    
     await registerCommands();
     await client.login(TOKEN);
-    
     console.log("✅ Bot iniciado correctamente");
   } catch (error) {
     console.error("❌ Error iniciando el bot:", error);
