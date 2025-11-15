@@ -272,6 +272,16 @@ const slashDefs = [
 // ========================== REGISTRO ==========================
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
+async function deleteAllCommands() {
+  try {
+    console.log("Eliminando comandos existentes...");
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
+    console.log("Comandos eliminados");
+  } catch (e) {
+    console.error("Error eliminando comandos:", e);
+  }
+}
+
 async function registerCommands() {
   try {
     console.log("Registrando comandos globales...");
@@ -493,8 +503,7 @@ client.on("interactionCreate", async (i) => {
           .slice(0, 10);
       } else {
         data = Object.entries(levels)
-          .map(([id, u]) => ({ id, value: u.level }))
-          .sort((a, b) => b.value - a.value)
+          .map(([id, u]) => ({ id, value: u.level })).sort((a, b) => b.value - a.value)
           .slice(0, 10);
       }
 
@@ -871,6 +880,7 @@ client.on("interactionCreate", async (i) => {
 });
 
 (async () => {
+  await deleteAllCommands();
   await registerCommands();
   await client.login(TOKEN);
 })();
