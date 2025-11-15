@@ -1,19 +1,20 @@
 {
-  "name": "HASBULLA",
-  "version": "1.0.0",
-  "description": "Bot de Discord con sistema Premium y Stripe",
+  "name": "discord-bot-mongodb",
+  "version": "2.0.0",
+  "description": "Bot de Discord con MongoDB para persistencia de datos",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": ["discord", "bot", "premium", "stripe"],
+  "keywords": ["discord", "bot", "mongodb"],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "discord.js": "^14.14.1",
     "express": "^4.18.2",
     "dotenv": "^16.3.1",
-    "stripe": "^14.10.0"
+    "stripe": "^14.10.0",
+    "mongoose": "^8.0.3"
   },
   "engines": {
     "node": ">=18.x"
