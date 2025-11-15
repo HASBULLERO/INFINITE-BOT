@@ -267,6 +267,7 @@ const slashDefs = [
   new SlashCommandBuilder().setName("premiumdaily").setDescription("[PREMIUM] Recompensa diaria mejorada").setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
   new SlashCommandBuilder().setName("megaslots").setDescription("[PREMIUM] Slots con multiplicador x5").addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
   new SlashCommandBuilder().setName("givepremium").setDescription("[OWNER] Da Premium a un usuario manualmente").addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true)).addStringOption(o => o.setName("plan").setDescription("Tipo de Premium").setRequired(true).addChoices({ name: "Mensual (30 dias)", value: "monthly" }, { name: "De por vida (Permanente)", value: "lifetime" })).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+  new SlashCommandBuilder().setName("setup").setDescription("[ADMIN] Configurar sistema de tickets").addChannelOption(o => o.setName("canal").setDescription("Canal donde aparecera el panel de tickets").setRequired(true).addChannelTypes(ChannelType.GuildText)).setDefaultMemberPermissions(PermissionFlagsBits.Administrator).setIntegrationTypes([0]).setContexts([0]),
 ].map(cmd => cmd.toJSON());
 
 // ========================== REGISTRO ==========================
@@ -274,11 +275,22 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 async function deleteAllCommands() {
   try {
-    console.log("Eliminando comandos existentes...");
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
-    console.log("Comandos eliminados");
+    console.log("Obteniendo comandos existentes...");
+    const existingCommands = await rest.get(Routes.applicationCommands(CLIENT_ID));
+    console.log("Comandos encontrados: " + existingCommands.length);
+    
+    for (const cmd of existingCommands) {
+      try {
+        console.log("Eliminando: " + cmd.name);
+        await rest.delete(Routes.applicationCommand(CLIENT_ID, cmd.id));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (err) {
+        console.log("No se pudo eliminar " + cmd.name);
+      }
+    }
+    console.log("Proceso completado");
   } catch (e) {
-    console.error("Error eliminando comandos:", e);
+    console.error("Error en deleteAllCommands:", e);
   }
 }
 
@@ -503,7 +515,8 @@ client.on("interactionCreate", async (i) => {
           .slice(0, 10);
       } else {
         data = Object.entries(levels)
-          .map(([id, u]) => ({ id, value: u.level })).sort((a, b) => b.value - a.value)
+          .map(([id, u]) => ({ id, value: u.level }))
+          .sort((a, b) => b.value - a.value)
           .slice(0, 10);
       }
 
@@ -812,13 +825,50 @@ client.on("interactionCreate", async (i) => {
 
       return i.reply({ embeds: [embed], ephemeral: true });
     }
+
+    if (name === "setup") {
+      if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
+      
+      const canal = i.options.getChannel("canal");
+
+      const embed = new EmbedBuilder()
+        .setTitle("Sistema de Tickets")
+        .setDescription("Haz clic en el boton de abajo para crear un ticket de soporte.\n\nUn miembro del staff te atendera lo antes posible.")
+        .setColor("Blue")
+        .setFooter({ text: "Sistema de Soporte" })
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("create_ticket")
+          .setLabel("Crear Ticket")
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji("🎫")
+      );
+
+      try {
+        await canal.send({ embeds: [embed], components: [row] });
+        return i.reply({ content: "Panel de tickets creado en " + canal.toString(), ephemeral: true });
+      } catch (error) {
+        console.error("Error creando panel:", error);
+        return i.reply({ content: "Error al crear el panel de tickets", ephemeral: true });
+      }
+    }
   }
 
-  if (i.isButton() && (i.customId === "support_es" || i.customId === "support_en")) {
+  if (i.isButton() && i.customId === "create_ticket") {
     if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
 
+    const existingTicket = i.guild.channels.cache.find(
+      c => c.name === "ticket-" + i.user.id && c.type === ChannelType.GuildText
+    );
+
+    if (existingTicket) {
+      return i.reply({ content: "Ya tienes un ticket abierto: " + existingTicket.toString(), ephemeral: true });
+    }
+
     const channel = await i.guild.channels.create({
-      name: "ticket-" + i.user.username,
+      name: "ticket-" + i.user.id,
       type: ChannelType.GuildText,
       permissionOverwrites: [
         { id: i.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -847,25 +897,22 @@ client.on("interactionCreate", async (i) => {
         .setCustomId("close_ticket")
         .setLabel("Cerrar Ticket")
         .setStyle(ButtonStyle.Danger)
+        .setEmoji("🔒")
     );
 
     await channel.send({
       content: "<@" + i.user.id + ">",
       embeds: [
         new EmbedBuilder()
-          .setTitle(i.customId === "support_es" ? "Ticket de Soporte" : "Support Ticket")
-          .setDescription(
-            i.customId === "support_es"
-              ? "Gracias por crear un ticket. El equipo te atendera pronto.\n\nDescribe tu problema o pregunta."
-              : "Thanks for creating a ticket. The support team will assist you shortly.\n\nDescribe your issue or question."
-          )
+          .setTitle("Ticket de Soporte")
+          .setDescription("Gracias por crear un ticket. El equipo te atendera pronto.\n\nDescribe tu problema o pregunta.")
           .setColor("Green")
           .setTimestamp(),
       ],
       components: [closeButton],
     });
 
-    await i.reply({ content: "Ticket creado: " + channel, ephemeral: true });
+    await i.reply({ content: "Ticket creado: " + channel.toString(), ephemeral: true });
   }
 
   if (i.isButton() && i.customId === "close_ticket") {
