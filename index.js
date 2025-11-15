@@ -307,7 +307,8 @@ async function registerCommands() {
 // ========================== EVENTOS ==========================
 client.once("ready", () => {
   console.log("Conectado como " + client.user.tag);
-  client.user.setActivity("Sistema Premium activo", { type: 3 });
+  client.user.setActivity("Ayudando a los mejores servers", { type: 3 });
+  client.user.setStatus(¨online¨);
 });
 
 client.on("messageCreate", (msg) => {
