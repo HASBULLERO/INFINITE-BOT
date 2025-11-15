@@ -874,4 +874,3 @@ client.on("interactionCreate", async (i) => {
   await registerCommands();
   await client.login(TOKEN);
 })();
-</artifact>
