@@ -943,41 +943,41 @@ client.on("interactionCreate", async (i) => {
 
     if (name === "info") {
       const embed = new EmbedBuilder()
-        .setTitle("ℹ️ Informacion del Bot")
+        .setTitle("Informacion del Bot")
         .setDescription("Bot multifuncional con economia, moderacion, juegos y sistema Premium")
         .setThumbnail(client.user.displayAvatarURL())
         .addFields(
           {
-            name: "💰 Economia",
-            value: "• `/balance` - Ver tu dinero\n• `/daily` - Recompensa diaria\n• `/trabajar` - Gana dinero\n• `/depositar` / `/retirar` - Banco\n• `/transferir` - Enviar dinero\n• `/leaderboard` - Top usuarios"
+            name: "Economia",
+            value: "/balance - Ver tu dinero\n/daily - Recompensa diaria\n/trabajar - Gana dinero\n/depositar / /retirar - Banco\n/transferir - Enviar dinero\n/leaderboard - Top usuarios"
           },
           {
-            name: "🎮 Juegos",
-            value: "• `/apostar` - Apuesta dinero\n• `/coinflip` - Cara o cruz\n• `/slots` - Tragaperras\n• `/8ball` - Bola magica\n• `/dado` - Lanza un dado\n• `/meme` - Memes aleatorios"
+            name: "Juegos",
+            value: "/apostar - Apuesta dinero\n/coinflip - Cara o cruz\n/slots - Tragaperras\n/8ball - Bola magica\n/dado - Lanza un dado\n/meme - Memes aleatorios"
           },
           {
-            name: "🛡️ Moderacion",
-            value: "• `/kick` - Expulsar usuario\n• `/ban` - Banear usuario\n• `/warn` - Advertir usuario\n• `/warnings` - Ver advertencias\n• `/clearwarns` - Limpiar warns\n• `/timeout` - Silenciar usuario\n• `/clear` - Borrar mensajes"
+            name: "Moderacion",
+            value: "/kick - Expulsar usuario\n/ban - Banear usuario\n/warn - Advertir usuario\n/warnings - Ver advertencias\n/clearwarns - Limpiar warns\n/timeout - Silenciar usuario\n/clear - Borrar mensajes"
           },
           {
-            name: "⭐ Premium",
-            value: "• `/premium` - Info Premium\n• `/buypremium` - Comprar Premium\n• `/premiumdaily` - Daily mejorado\n• `/megaslots` - Slots x5\n• **Beneficios:** 2x XP, 50% mas recompensas"
+            name: "Premium",
+            value: "/premium - Info Premium\n/buypremium - Comprar Premium\n/premiumdaily - Daily mejorado\n/megaslots - Slots x5\nBeneficios: 2x XP, 50% mas recompensas"
           },
           {
-            name: "🎫 Sistema de Tickets",
-            value: "• `/setup` - Crear panel de tickets\n• Los usuarios pueden crear tickets privados\n• Staff puede gestionar y cerrar tickets"
+            name: "Sistema de Tickets",
+            value: "/setup - Crear panel de tickets\nLos usuarios pueden crear tickets privados\nStaff puede gestionar y cerrar tickets"
           },
           {
-            name: "📢 Utilidades",
-            value: "• `/ping` - Ver latencia\n• `/avatar` - Ver avatar\n• `/userinfo` - Info de usuario\n• `/serverinfo` - Info del servidor\n• `/announce` - Enviar anuncios\n• `/info` - Este mensaje"
+            name: "Utilidades",
+            value: "/ping - Ver latencia\n/avatar - Ver avatar\n/userinfo - Info de usuario\n/serverinfo - Info del servidor\n/announce - Enviar anuncios\n/info - Este mensaje"
           },
           {
-            name: "📊 Sistema de Niveles",
-            value: "• Gana XP escribiendo mensajes\n• Sube de nivel automaticamente\n• Premium obtiene 2x XP\n• `/leaderboard nivel` - Top niveles"
+            name: "Sistema de Niveles",
+            value: "Gana XP escribiendo mensajes\nSube de nivel automaticamente\nPremium obtiene 2x XP\n/leaderboard nivel - Top niveles"
           },
           {
-            name: "🔧 Administracion",
-            value: "• Logs automaticos de eventos\n• Sistema de advertencias\n• Moderacion completa\n• Sistema de tickets personalizable"
+            name: "Administracion",
+            value: "Logs automaticos de eventos\nSistema de advertencias\nModeracion completa\nSistema de tickets personalizable"
           }
         )
         .setColor("Blue")
@@ -986,7 +986,6 @@ client.on("interactionCreate", async (i) => {
 
       return i.reply({ embeds: [embed] });
     }
-  }
 
   if (i.isButton() && i.customId === "create_ticket") {
     if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
