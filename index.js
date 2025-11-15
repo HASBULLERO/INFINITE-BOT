@@ -23,7 +23,7 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 const OWNER_ID = process.env.OWNER_ID;
-const MONGO_URI = process.env.MONGO_URI; // NUEVA VARIABLE
+const MONGO_URI = process.env.MONGO_URI;
 
 const STAFF_ROLE_IDS = [
   "1405183233293025382",
@@ -237,11 +237,11 @@ async function tryAddXP(userId, channel) {
 async function addWarn(userId, guildId, reason, moderatorId) {
   const key = guildId + "-" + userId;
   let doc = await Warning.findOne({ key });
-  
+
   if (!doc) {
     doc = await Warning.create({ key, warnings: [] });
   }
-  
+
   doc.warnings.push({ reason, moderatorId, timestamp: Date.now() });
   await doc.save();
   return doc.warnings.length;
@@ -297,6 +297,8 @@ const slashDefs = [
   new SlashCommandBuilder().setName("megaslots").setDescription("[PREMIUM] Slots con multiplicador x5").addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
   new SlashCommandBuilder().setName("givepremium").setDescription("[OWNER] Da Premium a un usuario manualmente").addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true)).addStringOption(o => o.setName("plan").setDescription("Tipo de Premium").setRequired(true).addChoices({ name: "Mensual (30 dias)", value: "monthly" }, { name: "De por vida (Permanente)", value: "lifetime" })).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
   new SlashCommandBuilder().setName("setup").setDescription("[ADMIN] Configurar sistema de tickets").addChannelOption(o => o.setName("canal").setDescription("Canal donde aparecera el panel de tickets").setRequired(true).addChannelTypes(ChannelType.GuildText)).setDefaultMemberPermissions(PermissionFlagsBits.Administrator).setIntegrationTypes([0]).setContexts([0]),
+  new SlashCommandBuilder().setName("announce").setDescription("[ADMIN] Enviar anuncio desde el bot").addChannelOption(o => o.setName("canal").setDescription("Canal donde enviar el anuncio").setRequired(true).addChannelTypes(ChannelType.GuildText)).addStringOption(o => o.setName("mensaje").setDescription("Mensaje del anuncio").setRequired(true)).addStringOption(o => o.setName("titulo").setDescription("Titulo del anuncio (opcional)")).setDefaultMemberPermissions(PermissionFlagsBits.Administrator).setIntegrationTypes([0]).setContexts([0]),
+  new SlashCommandBuilder().setName("info").setDescription("Informacion completa sobre el bot y sus funciones").setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 ].map(cmd => cmd.toJSON());
 
 // ========================== REGISTRO ==========================
@@ -307,7 +309,7 @@ async function deleteAllCommands() {
     console.log("Obteniendo comandos existentes...");
     const existingCommands = await rest.get(Routes.applicationCommands(CLIENT_ID));
     console.log("Comandos encontrados: " + existingCommands.length);
-    
+
     for (const cmd of existingCommands) {
       try {
         console.log("Eliminando: " + cmd.name);
@@ -327,7 +329,7 @@ async function registerCommands() {
   try {
     console.log("Registrando comandos globales...");
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: slashDefs });
-    console.log("Comandos registrados");
+    console.log("✅ Comandos registrados exitosamente");
   } catch (e) {
     console.error("Error registrando comandos:", e);
   }
@@ -335,7 +337,7 @@ async function registerCommands() {
 
 // ========================== EVENTOS ==========================
 client.once("ready", () => {
-  console.log("Conectado como " + client.user.tag);
+  console.log("✅ Bot conectado como " + client.user.tag);
   client.user.setActivity("Ayudando a los mejores servers", { type: 3 });
   client.user.setStatus("online");
 });
@@ -502,7 +504,7 @@ client.on("interactionCreate", async (i) => {
       if (target.bot || target.id === i.user.id) return i.reply({ content: "No valido", ephemeral: true });
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
       if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
-      await addMoney(i.user.id, -cantidad);
+      await addMoney(i.user.id, -cantidad);```javascript
       await addMoney(target.id, cantidad);
       return i.reply("Transferiste **" + cantidad + "** a **" + target.username + "**. Tu saldo: **" + (await getBalance(i.user.id)) + "**");
     }
@@ -523,7 +525,7 @@ client.on("interactionCreate", async (i) => {
       const cantidad = i.options.getInteger("cantidad");
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
       if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
-      const symbols = ["cereza", "limon", "campana", "estrella", "siete"];
+      const symbols = ["🍒", "🍋", "🔔", "⭐", "7️⃣"];
       const r = () => symbols[Math.floor(Math.random() * symbols.length)];
       const res = [r(), r(), r()];
       let win = false;
@@ -533,7 +535,7 @@ client.on("interactionCreate", async (i) => {
         ganho = cantidad * 3;
       }
       await addMoney(i.user.id, win ? ganho : -cantidad);
-      return i.reply("Slots: " + res.join(" | ") + "\n" + (win ? "Ganaste" : "Perdiste") + " " + (win ? ganho : cantidad) + ". Saldo: **" + (await getBalance(i.user.id)) + "**");
+      return i.reply("🎰 Slots: " + res.join(" | ") + "\n" + (win ? "🎉 Ganaste **+" : "❌ Perdiste **-") + (win ? ganho : cantidad) + "**\nSaldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "leaderboard") {
@@ -549,12 +551,12 @@ client.on("interactionCreate", async (i) => {
       }
 
       const description = data.map((d, idx) => {
-        const valor = tipo === "money" ? "Dinero: " + d.value : "Nivel " + d.value;
+        const valor = tipo === "money" ? "💰 " + d.value : "📊 Nivel " + d.value;
         return "**" + (idx + 1) + ".** <@" + d.id + "> - " + valor;
       }).join("\n") || "Sin datos";
 
       const embed = new EmbedBuilder()
-        .setTitle("Top " + (tipo === "money" ? "Dinero" : "Niveles"))
+        .setTitle("🏆 Top " + (tipo === "money" ? "Dinero" : "Niveles"))
         .setDescription(description)
         .setColor("Gold");
       return i.reply({ embeds: [embed] });
@@ -563,20 +565,27 @@ client.on("interactionCreate", async (i) => {
     if (name === "8ball") {
       const pregunta = i.options.getString("pregunta");
       const respuestas = [
-        "Si", "No", "Tal vez", "Definitivamente", "No lo creo",
-        "Pregunta de nuevo", "Sin duda", "No cuentes con ello",
-        "Es probable", "No es seguro", "Mis fuentes dicen que no",
-        "Es cierto", "Mejor no decirte ahora", "Concentrate y pregunta de nuevo"
+        "✅ Si", "❌ No", "🤔 Tal vez", "💯 Definitivamente", "🙅 No lo creo",
+        "🔄 Pregunta de nuevo", "✨ Sin duda", "⛔ No cuentes con ello",
+        "📈 Es probable", "❓ No es seguro", "📉 Mis fuentes dicen que no",
+        "🎯 Es cierto", "🔒 Mejor no decirte ahora", "🎲 Concentrate y pregunta de nuevo"
       ];
       const respuesta = respuestas[Math.floor(Math.random() * respuestas.length)];
-      return i.reply("**Pregunta:** " + pregunta + "\n**Respuesta:** " + respuesta);
+      const embed = new EmbedBuilder()
+        .setTitle("🔮 Bola Magica")
+        .addFields(
+          { name: "❓ Pregunta", value: pregunta },
+          { name: "💬 Respuesta", value: respuesta }
+        )
+        .setColor("Purple");
+      return i.reply({ embeds: [embed] });
     }
 
     if (name === "dado") {
       const caras = i.options.getInteger("caras") || 6;
       if (caras < 2 || caras > 100) return i.reply({ content: "Entre 2 y 100 caras", ephemeral: true });
       const resultado = Math.floor(Math.random() * caras) + 1;
-      return i.reply("Lanzaste un dado de " + caras + " caras: **" + resultado + "**");
+      return i.reply("🎲 Lanzaste un dado de **" + caras + "** caras: **" + resultado + "**");
     }
 
     if (name === "meme") {
@@ -589,7 +598,7 @@ client.on("interactionCreate", async (i) => {
       ];
       const meme = memes[Math.floor(Math.random() * memes.length)];
       const embed = new EmbedBuilder()
-        .setTitle("Meme Aleatorio")
+        .setTitle("😂 Meme Aleatorio")
         .setImage(meme)
         .setColor("Random");
       return i.reply({ embeds: [embed] });
@@ -606,7 +615,7 @@ client.on("interactionCreate", async (i) => {
       await member.kick(razon);
 
       const embed = new EmbedBuilder()
-        .setTitle("Usuario Expulsado")
+        .setTitle("👢 Usuario Expulsado")
         .addFields(
           { name: "Usuario", value: target.tag },
           { name: "Moderador", value: i.user.tag },
@@ -630,7 +639,7 @@ client.on("interactionCreate", async (i) => {
       await i.guild.members.ban(target.id, { reason: razon });
 
       const embed = new EmbedBuilder()
-        .setTitle("Usuario Baneado")
+        .setTitle("🔨 Usuario Baneado")
         .addFields(
           { name: "Usuario", value: target.tag },
           { name: "Moderador", value: i.user.tag },
@@ -653,7 +662,7 @@ client.on("interactionCreate", async (i) => {
       const warnCount = await addWarn(target.id, i.guild.id, razon, i.user.id);
 
       const embed = new EmbedBuilder()
-        .setTitle("Usuario Advertido")
+        .setTitle("⚠️ Usuario Advertido")
         .addFields(
           { name: "Usuario", value: target.tag },
           { name: "Moderador", value: i.user.tag },
@@ -681,7 +690,7 @@ client.on("interactionCreate", async (i) => {
       ).join("\n\n");
 
       const embed = new EmbedBuilder()
-        .setTitle("Advertencias de " + target.username)
+        .setTitle("⚠️ Advertencias de " + target.username)
         .setDescription(description)
         .setColor("Yellow");
 
@@ -692,7 +701,7 @@ client.on("interactionCreate", async (i) => {
       if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
       const target = i.options.getUser("usuario");
       await clearWarns(target.id, i.guild.id);
-      return i.reply("Advertencias de " + target.username + " limpiadas");
+      return i.reply("✅ Advertencias de " + target.username + " limpiadas");
     }
 
     if (name === "timeout") {
@@ -709,7 +718,7 @@ client.on("interactionCreate", async (i) => {
       await member.timeout(minutos * 60 * 1000, razon);
 
       const embed = new EmbedBuilder()
-        .setTitle("Usuario Silenciado")
+        .setTitle("🔇 Usuario Silenciado")
         .addFields(
           { name: "Usuario", value: target.tag },
           { name: "Moderador", value: i.user.tag },
@@ -729,7 +738,7 @@ client.on("interactionCreate", async (i) => {
       if (cantidad < 1 || cantidad > 100) return i.reply({ content: "Entre 1 y 100", ephemeral: true });
 
       const deleted = await i.channel.bulkDelete(cantidad, true);
-      return i.reply({ content: "Eliminados **" + deleted.size + "** mensajes", ephemeral: true });
+      return i.reply({ content: "🗑️ Eliminados **" + deleted.size + "** mensajes", ephemeral: true });
     }
 
     if (name === "premium") {
@@ -737,16 +746,17 @@ client.on("interactionCreate", async (i) => {
       const userData = await PremiumUser.findOne({ userId: i.user.id });
 
       const embed = new EmbedBuilder()
-        .setTitle("Sistema Premium")
+        .setTitle("⭐ Sistema Premium")
         .setDescription(status
-          ? "Eres usuario Premium!\n\nPlan: " + (userData.tier === "monthly" ? "Mensual" : "De por vida") + "\n" + (userData.tier === "monthly" ? "Expira: <t:" + Math.floor(userData.expiresAt / 1000) + ":R>" : "Duracion: Permanente")
-          : "No tienes Premium activo")
+          ? "✅ Eres usuario Premium!\n\n**Plan:** " + (userData.tier === "monthly" ? "Mensual 📅" : "De por vida ♾️") + "\n" + (userData.tier === "monthly" ? "**Expira:** <t:" + Math.floor(userData.expiresAt / 1000) + ":R>" : "**Duracion:** Permanente")
+          : "❌ No tienes Premium activo")
         .addFields(
-          { name: "Beneficios Premium", value: "2x XP en mensajes\n50% mas recompensas (daily/work)\nComando /premiumdaily exclusivo\nComando /megaslots con x5 multiplicador\nBadge especial en comandos" },
-          { name: "Planes", value: "Mensual: $9.99/mes\nDe por vida: $49.99 (pago unico)" },
-          { name: "Activar", value: "Usa /buypremium para empezar" }
+          { name: "🎁 Beneficios Premium", value: "• 2x XP en mensajes\n• 50% mas recompensas (daily/work)\n• Comando `/premiumdaily` exclusivo\n• Comando `/megaslots` con x5 multiplicador\n• Badge especial en comandos" },
+          { name: "💳 Planes", value: "**Mensual:** $9.99/mes\n**De por vida:** $49.99 (pago unico)" },
+          { name: "🚀 Activar", value: "Usa `/buypremium` para empezar" }
         )
-        .setColor(status ? "Gold" : "Grey");
+        .setColor(status ? "Gold" : "Grey")
+        .setFooter({ text: "Premium te da ventajas exclusivas" });
 
       return i.reply({ embeds: [embed] });
     }
@@ -758,13 +768,13 @@ client.on("interactionCreate", async (i) => {
         const url = await createCheckoutSession(i.user.id, plan);
 
         const embed = new EmbedBuilder()
-          .setTitle("Checkout de Premium")
-          .setDescription("Haz clic en el boton de abajo para completar tu compra.\n\nPlan: " + (plan === "monthly" ? "Mensual ($9.99/mes)" : "De por vida ($49.99)") + "\n\nUna vez completado el pago, tu Premium se activara automaticamente")
+          .setTitle("💳 Checkout de Premium")
+          .setDescription("Haz clic en el boton de abajo para completar tu compra.\n\n**Plan:** " + (plan === "monthly" ? "Mensual ($9.99/mes)" : "De por vida ($49.99)") + "\n\n✅ Una vez completado el pago, tu Premium se activara automaticamente")
           .setColor("Gold");
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
-            .setLabel("Ir al Checkout")
+            .setLabel("🛒 Ir al Checkout")
             .setStyle(ButtonStyle.Link)
             .setURL(url)
         );
@@ -772,34 +782,34 @@ client.on("interactionCreate", async (i) => {
         return i.reply({ embeds: [embed], components: [row], ephemeral: true });
       } catch (error) {
         console.error("Error creando checkout:", error);
-        return i.reply({ content: "Error al crear la sesion de pago. Contacta al soporte", ephemeral: true });
+        return i.reply({ content: "❌ Error al crear la sesion de pago. Contacta al soporte", ephemeral: true });
       }
     }
 
     if (name === "premiumdaily") {
       if (!(await isPremium(i.user.id))) {
         return i.reply({
-          content: "Este comando es exclusivo para usuarios Premium. Usa /premium para mas info",
+          content: "⭐ Este comando es exclusivo para usuarios Premium. Usa `/premium` para mas info",
           ephemeral: true
         });
       }
 
       const u = await ensureUserEconomy(i.user.id);
       const cd = canUseCooldown(u.lastDaily, 12 * 60 * 60 * 1000);
-      if (!cd.ok) return i.reply({ content: "Vuelve en **" + fmtMs(cd.left) + "**", ephemeral: true });
+      if (!cd.ok) return i.reply({ content: "⏰ Vuelve en **" + fmtMs(cd.left) + "**", ephemeral: true });
 
       const amount = Math.floor(Math.random() * 401) + 300;
       u.lastDaily = Date.now();
       await u.save();
       await addMoney(i.user.id, amount);
 
-      return i.reply("Premium Daily: **+" + amount + "**! (12h cooldown) Saldo: **" + (await getBalance(i.user.id)) + "**");
+      return i.reply("🌟 **Premium Daily:** **+" + amount + "**! (12h cooldown)\n💰 Saldo: **" + (await getBalance(i.user.id)) + "**");
     }
 
     if (name === "megaslots") {
       if (!(await isPremium(i.user.id))) {
         return i.reply({
-          content: "Este comando es exclusivo para usuarios Premium. Usa /premium para mas info",
+          content: "⭐ Este comando es exclusivo para usuarios Premium. Usa `/premium` para mas info",
           ephemeral: true
         });
       }
@@ -808,7 +818,7 @@ client.on("interactionCreate", async (i) => {
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
       if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
 
-      const symbols = ["diamante", "estrella", "corona", "fuego", "dinero"];
+      const symbols = ["💎", "⭐", "👑", "🔥", "💰"];
       const r = () => symbols[Math.floor(Math.random() * symbols.length)];
       const res = [r(), r(), r()];
 
@@ -822,13 +832,22 @@ client.on("interactionCreate", async (i) => {
       const ganancia = multiplier > 0 ? cantidad * multiplier : -cantidad;
       await addMoney(i.user.id, ganancia);
 
-      return i.reply("MEGA SLOTS\nSlots: " + res.join(" | ") + "\n\n" + (multiplier > 0 ? "GANASTE x" + multiplier + "! +" + ganancia : "Perdiste -" + cantidad) + "\n\nSaldo: **" + (await getBalance(i.user.id)) + "**");
+      const embed = new EmbedBuilder()
+        .setTitle("🎰 MEGA SLOTS")
+        .setDescription("**Resultado:** " + res.join(" | "))
+        .addFields(
+          { name: "Resultado", value: multiplier > 0 ? "🎉 GANASTE x" + multiplier + "! **+" + ganancia + "**" : "❌ Perdiste **-" + cantidad + "**" },
+          { name: "💰 Saldo", value: "**" + (await getBalance(i.user.id)) + "**" }
+        )
+        .setColor(multiplier > 0 ? "Green" : "Red");
+
+      return i.reply({ embeds: [embed] });
     }
 
     if (name === "givepremium") {
       if (i.user.id !== OWNER_ID) {
         return i.reply({
-          content: "Este comando es exclusivo del creador del bot",
+          content: "🔒 Este comando es exclusivo del creador del bot",
           ephemeral: true
         });
       }
@@ -839,7 +858,7 @@ client.on("interactionCreate", async (i) => {
       await activatePremium(target.id, plan);
 
       const embed = new EmbedBuilder()
-        .setTitle("Premium Otorgado")
+        .setTitle("⭐ Premium Otorgado")
         .setDescription("Premium activado exitosamente para " + target.username)
         .addFields(
           { name: "Usuario", value: "<@" + target.id + ">", inline: true },
@@ -857,12 +876,18 @@ client.on("interactionCreate", async (i) => {
 
     if (name === "setup") {
       if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
-      
-      const canal = i.options.getChannel("canal");
+
+      // CORRECCION: Usar i.channel en lugar de i.options.getChannel()
+      const canalId = i.options.get("canal").value;
+      const canal = await i.guild.channels.fetch(canalId).catch(() => null);
+
+      if (!canal || canal.type !== ChannelType.GuildText) {
+        return i.reply({ content: "❌ Canal invalido. Debe ser un canal de texto", ephemeral: true });
+      }
 
       const embed = new EmbedBuilder()
-        .setTitle("Sistema de Tickets")
-        .setDescription("Haz clic en el boton de abajo para crear un ticket de soporte.\n\nUn miembro del staff te atendera lo antes posible.")
+        .setTitle("🎫 Sistema de Tickets")
+        .setDescription("Haz clic en el boton de abajo para crear un ticket de soporte.\n\n✅ Un miembro del staff te atendera lo antes posible.")
         .setColor("Blue")
         .setFooter({ text: "Sistema de Soporte" })
         .setTimestamp();
@@ -877,11 +902,89 @@ client.on("interactionCreate", async (i) => {
 
       try {
         await canal.send({ embeds: [embed], components: [row] });
-        return i.reply({ content: "Panel de tickets creado en " + canal.toString(), ephemeral: true });
+        return i.reply({ content: "✅ Panel de tickets creado en " + canal.toString(), ephemeral: true });
       } catch (error) {
         console.error("Error creando panel:", error);
-        return i.reply({ content: "Error al crear el panel de tickets", ephemeral: true });
+        return i.reply({ content: "❌ Error al crear el panel de tickets. Verifica que el bot tenga permisos", ephemeral: true });
       }
+    }
+
+    if (name === "announce") {
+      if (!i.guild) return i.reply({ content: "Este comando solo funciona en servidores", ephemeral: true });
+
+      const canalId = i.options.get("canal").value;
+      const mensaje = i.options.getString("mensaje");
+      const titulo = i.options.getString("titulo");
+
+      const canal = await i.guild.channels.fetch(canalId).catch(() => null);
+
+      if (!canal || canal.type !== ChannelType.GuildText) {
+        return i.reply({ content: "❌ Canal invalido. Debe ser un canal de texto", ephemeral: true });
+      }
+
+      const embed = new EmbedBuilder()
+        .setDescription(mensaje)
+        .setColor("Blue")
+        .setTimestamp()
+        .setFooter({ text: "Anuncio por " + i.user.username, iconURL: i.user.displayAvatarURL() });
+
+      if (titulo) {
+        embed.setTitle("📢 " + titulo);
+      }
+
+      try {
+        await canal.send({ embeds: [embed] });
+        return i.reply({ content: "✅ Anuncio enviado en " + canal.toString(), ephemeral: true });
+      } catch (error) {
+        console.error("Error enviando anuncio:", error);
+        return i.reply({ content: "❌ Error al enviar el anuncio. Verifica que el bot tenga permisos", ephemeral: true });
+      }
+    }
+
+    if (name === "info") {
+      const embed = new EmbedBuilder()
+        .setTitle("ℹ️ Informacion del Bot")
+        .setDescription("Bot multifuncional con economia, moderacion, juegos y sistema Premium")
+        .setThumbnail(client.user.displayAvatarURL())
+        .addFields(
+          {
+            name: "💰 Economia",
+            value: "• `/balance` - Ver tu dinero\n• `/daily` - Recompensa diaria\n• `/trabajar` - Gana dinero\n• `/depositar` / `/retirar` - Banco\n• `/transferir` - Enviar dinero\n• `/leaderboard` - Top usuarios"
+          },
+          {
+            name: "🎮 Juegos",
+            value: "• `/apostar` - Apuesta dinero\n• `/coinflip` - Cara o cruz\n• `/slots` - Tragaperras\n• `/8ball` - Bola magica\n• `/dado` - Lanza un dado\n• `/meme` - Memes aleatorios"
+          },
+          {
+            name: "🛡️ Moderacion",
+            value: "• `/kick` - Expulsar usuario\n• `/ban` - Banear usuario\n• `/warn` - Advertir usuario\n• `/warnings` - Ver advertencias\n• `/clearwarns` - Limpiar warns\n• `/timeout` - Silenciar usuario\n• `/clear` - Borrar mensajes"
+          },
+          {
+            name: "⭐ Premium",
+            value: "• `/premium` - Info Premium\n• `/buypremium` - Comprar Premium\n• `/premiumdaily` - Daily mejorado\n• `/megaslots` - Slots x5\n• **Beneficios:** 2x XP, 50% mas recompensas"
+          },
+          {
+            name: "🎫 Sistema de Tickets",
+            value: "• `/setup` - Crear panel de tickets\n• Los usuarios pueden crear tickets privados\n• Staff puede gestionar y cerrar tickets"
+          },
+          {
+            name: "📢 Utilidades",
+            value: "• `/ping` - Ver latencia\n• `/avatar` - Ver avatar\n• `/userinfo` - Info de usuario\n• `/serverinfo` - Info del servidor\n• `/announce` - Enviar anuncios\n• `/info` - Este mensaje"
+          },
+          {
+            name: "📊 Sistema de Niveles",
+            value: "• Gana XP escribiendo mensajes\n• Sube de nivel automaticamente\n• Premium obtiene 2x XP\n• `/leaderboard nivel` - Top niveles"
+          },
+          {
+            name: "🔧 Administracion",
+            value: "• Logs automaticos de eventos\n• Sistema de advertencias\n• Moderacion completa\n• Sistema de tickets personalizable"
+          }
+        )
+        .setColor("Blue")
+        .setFooter({ text: "Servidor: " + (i.guild ? i.guild.name : "DM") + " | Latencia: " + client.ws.ping + "ms" })
+        .setTimestamp();
+
+      return i.reply({ embeds: [embed] });
     }
   }
 
@@ -893,7 +996,7 @@ client.on("interactionCreate", async (i) => {
     );
 
     if (existingTicket) {
-      return i.reply({ content: "Ya tienes un ticket abierto: " + existingTicket.toString(), ephemeral: true });
+      return i.reply({ content: "❌ Ya tienes un ticket abierto: " + existingTicket.toString(), ephemeral: true });
     }
 
     const channel = await i.guild.channels.create({
@@ -933,30 +1036,40 @@ client.on("interactionCreate", async (i) => {
       content: "<@" + i.user.id + ">",
       embeds: [
         new EmbedBuilder()
-          .setTitle("Ticket de Soporte")
-          .setDescription("Gracias por crear un ticket. El equipo te atendera pronto.\n\nDescribe tu problema o pregunta.")
+          .setTitle("🎫 Ticket de Soporte")
+          .setDescription("Gracias por crear un ticket. El equipo te atendera pronto.\n\n📝 Describe tu problema o pregunta.")
           .setColor("Green")
           .setTimestamp(),
       ],
       components: [closeButton],
     });
 
-    await i.reply({ content: "Ticket creado: " + channel.toString(), ephemeral: true });
+    await i.reply({ content: "✅ Ticket creado: " + channel.toString(), ephemeral: true });
   }
 
   if (i.isButton() && i.customId === "close_ticket") {
     const hasStaffRole = i.member.roles.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
     if (!hasStaffRole && !i.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      return i.reply({ content: "Solo el staff puede cerrar tickets", ephemeral: true });
+      return i.reply({ content: "❌ Solo el staff puede cerrar tickets", ephemeral: true });
     }
 
-    await i.reply("Cerrando ticket en 5 segundos...");
+    await i.reply("🔒 Cerrando ticket en 5 segundos...");
     setTimeout(() => i.channel.delete(), 5000);
   }
 });
 
+// ========================== INICIO ==========================
 (async () => {
-  await deleteAllCommands();
-  await registerCommands();
-  await client.login(TOKEN);
+  try {
+    // COMENTADO - Solo usar cuando necesites limpiar comandos
+    // await deleteAllCommands();
+    
+    await registerCommands();
+    await client.login(TOKEN);
+    
+    console.log("✅ Bot iniciado correctamente");
+  } catch (error) {
+    console.error("❌ Error iniciando el bot:", error);
+    process.exit(1);
+  }
 })();
