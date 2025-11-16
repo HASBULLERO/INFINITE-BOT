@@ -1037,9 +1037,10 @@ client.on("interactionCreate", async (i) => {
 // ========================== INICIO ==========================
 (async () => {
   try {
+    console.log("Iniciando bot...");
     await registerCommands();
+    console.log("Intentando login...");
     await client.login(TOKEN);
-    console.log("Bot iniciado correctamente");
   } catch (error) {
     console.error("Error iniciando el bot:", error);
     process.exit(1);
