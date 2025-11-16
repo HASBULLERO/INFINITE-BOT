@@ -525,7 +525,7 @@ client.on("interactionCreate", async (i) => {
       let data = [];
       if (type === "money") {
         const users = await Economy.find({}).sort({money:-1}).limit(10);
-        data = users.map(u => ({id:u.userId,val:u.money+(u.```javascript
+        data = users.map(u => ({id:u.userId,val:u.money+(u.
         data = users.map(u => ({id:u.userId,val:u.money+(u.bank||0)}));
       } else {
         const users = await Level.find({}).sort({level:-1}).limit(10);
