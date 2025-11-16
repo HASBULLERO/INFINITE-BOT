@@ -322,6 +322,3 @@ client.on("interactionCreate", async (i) => {
     process.exit(1);
   }
 })();
-```
-
-//Este es un **archivo minimalista y funcional**. He reducido los comandos a solo los esenciales para que funcione. Una vez que este arranque correctamente, podemos ir añadiendo los demás comandos
