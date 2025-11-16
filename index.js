@@ -495,7 +495,6 @@ client.on("interactionCreate", async (i) => {
       if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
       const resultado = Math.random() < 0.5 ? "cara" : "cruz";
       const win = resultado === eleccion;
-      if (win) await addMoney(i.user.```javascript
       if (win) await addMoney(i.user.id, cantidad);
       else await addMoney(i.user.id, -cantidad);
       return i.reply("Moneda: **" + resultado + "**. " + (win ? "Ganaste" : "Perdiste") + " **" + cantidad + "**. Saldo: **" + (await getBalance(i.user.id)) + "**");
