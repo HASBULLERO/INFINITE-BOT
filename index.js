@@ -1037,12 +1037,21 @@ client.on("interactionCreate", async (i) => {
 // ========================== INICIO ==========================
 (async () => {
   try {
-    console.log("Iniciando bot...");
+    console.log("=== INICIANDO BOT ===");
+    console.log("TOKEN existe:", TOKEN ? "SI" : "NO");
+    console.log("TOKEN longitud:", TOKEN ? TOKEN.length : 0);
+    console.log("CLIENT_ID:", CLIENT_ID);
+    
     await registerCommands();
-    console.log("Intentando login...");
+    console.log("Comandos registrados");
+    
+    console.log("Intentando login a Discord...");
     await client.login(TOKEN);
+    console.log("Login completado");
   } catch (error) {
-    console.error("Error iniciando el bot:", error);
+    console.error("ERROR COMPLETO:", error);
+    console.error("Mensaje:", error.message);
+    console.error("Stack:", error.stack);
     process.exit(1);
   }
 })();
