@@ -1,3 +1,4 @@
+// Version 1.0 (error en el login y conectar)
 // ========================== IMPORTS ==========================
 require("dotenv").config();
 const express = require("express");
@@ -307,18 +308,35 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 async function registerCommands() {
   try {
     console.log("Registrando comandos globales...");
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: slashDefs });
-    console.log("Comandos registrados exitosamente");
+    const result = await rest.put(Routes.applicationCommands(CLIENT_ID), { body: slashDefs });
+    console.log("Comandos registrados exitosamente:", result.length);
   } catch (e) {
-    console.error("Error registrando comandos:", e);
+    console.error("ERROR REGISTRANDO COMANDOS:");
+    console.error("Mensaje:", e.message);
+    console.error("Codigo:", e.code);
+    console.error("Stack:", e.stack);
+    throw e;
   }
 }
 
 // ========================== EVENTOS ==========================
 client.once("ready", () => {
-  console.log("Bot conectado como " + client.user.tag);
+  console.log("========================================");
+  console.log("BOT CONECTADO EXITOSAMENTE");
+  console.log("Usuario:", client.user.tag);
+  console.log("ID:", client.user.id);
+  console.log("Servidores:", client.guilds.cache.size);
+  console.log("========================================");
   client.user.setActivity("Ayudando a los mejores servers", { type: 3 });
   client.user.setStatus("online");
+});
+
+client.on("error", (error) => {
+  console.error("ERROR DEL CLIENTE:", error);
+});
+
+client.on("warn", (info) => {
+  console.warn("ADVERTENCIA:", info);
 });
 
 client.on("messageCreate", async (msg) => {
@@ -490,6 +508,7 @@ client.on("interactionCreate", async (i) => {
 
     if (name === "coinflip") {
       const eleccion = i.options.getString("eleccion");
+      const cantidad = i.options.get```javascript
       const cantidad = i.options.getInteger("cantidad");
       if (cantidad <= 0) return i.reply({ content: "Cantidad invalida", ephemeral: true });
       if ((await getBalance(i.user.id)) < cantidad) return i.reply({ content: "No tienes suficiente", ephemeral: true });
@@ -1043,15 +1062,19 @@ client.on("interactionCreate", async (i) => {
     console.log("CLIENT_ID:", CLIENT_ID);
     
     await registerCommands();
-    console.log("Comandos registrados");
+    console.log("Comandos registrados, procediendo al login...");
     
     console.log("Intentando login a Discord...");
     await client.login(TOKEN);
-    console.log("Login completado");
+    console.log("Login completado exitosamente");
   } catch (error) {
-    console.error("ERROR COMPLETO:", error);
+    console.error("========== ERROR CRITICO ==========");
+    console.error("Tipo:", error.name);
     console.error("Mensaje:", error.message);
-    console.error("Stack:", error.stack);
+    console.error("Codigo:", error.code);
+    console.error("Stack completo:");
+    console.error(error.stack);
+    console.error("====================================");
     process.exit(1);
   }
 })();
