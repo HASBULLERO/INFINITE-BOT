@@ -1,9 +1,4 @@
 // Version 1.0 (error en el login y conectar)
-El error indica que falta cerrar alguna llave. Voy a darte el archivo COMPLETO otra vez, verificando cada llave. Este código está **100% probado y completo**:
-
-Guarda este archivo como `index.js` y reemplázalo completamente:
-
-```javascript
 // ========================== IMPORTS ==========================
 require("dotenv").config();
 const express = require("express");
